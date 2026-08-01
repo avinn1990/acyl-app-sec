@@ -1,0 +1,13 @@
+include:
+  - "**/*"
+exclude:
+  - ".git/**"
+  - "node_modules/**"
+  - "vendor/**"
+  - ".venv/**"
+  - "venv/**"
+  - "dist/**"
+  - "build/**"
+  - "target/**"
+  - ".cursor/**"
+  - ".claude/**"
