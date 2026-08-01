@@ -92,10 +92,26 @@ Roles in v1: Orchestrator, Indexer, Cartographer, Detector (CodeGuard + secrets 
 
 See [`specs/001-foundry/`](specs/001-foundry/) for the constitution and clarifications.
 
+## Cursor: CodeGuard agents & skills
+
+This repo vendors [Project CodeGuard](https://github.com/cosai-oasis/project-codeguard) v1.4.0 under [`.cursor/`](.cursor/) so Cursor picks it up from any clone (no global install):
+
+| Path | What it does |
+|---|---|
+| `.cursor/rules/codeguard-*.mdc` | Always-on secure-coding rules in the editor |
+| `.cursor/agents/codeguard-reviewer.md` | `@codeguard-reviewer` — SARIF-oriented security review agent |
+| `.cursor/skills/codeguard/` | `/codeguard` skill while writing or reviewing code |
+| `.cursor/skills/security-review/` | `/security-review` structured review workflow |
+| `.cursor/skills/memory-safe-migration/` | `/memory-safe-migration` for C/C++ → memory-safe ports |
+
+Attribution: [`.cursor/CODEGUARD_NOTICE.md`](.cursor/CODEGUARD_NOTICE.md) (CC-BY-4.0). Re-sync with `scripts/vendor-codeguard.sh`.
+
+These Cursor assets are separate from the **runtime** detector rules in `rules/` used by `acyl scan`.
+
 ## Air gap
 
 - Cache Antares weights under `~/.cache/acyl/models/`
-- Vendor CodeGuard rules ship in-repo (`rules/`, `vendor/codeguard/`)
+- Vendor CodeGuard rules ship in-repo (`rules/`, `vendor/codeguard/`, `.cursor/`)
 - Secrets/SCA fallbacks work without downloading scanners
 - `acyl fix --finding <id> --offline` writes a patch + `fix-branch.sh` without pushing
 
@@ -114,4 +130,4 @@ acyl dashboard [--host 127.0.0.1] [--port 8787]
 
 ## License
 
-MIT for acyl code. Project CodeGuard materials under `vendor/codeguard/` and `rules/` are CC-BY-4.0 (see `vendor/codeguard/NOTICE.md`). Antares weights are Apache-2.0 from Cisco Foundation AI / Hugging Face.
+MIT for acyl code. Project CodeGuard materials under `vendor/codeguard/`, `rules/`, and `.cursor/` are CC-BY-4.0 (see `vendor/codeguard/NOTICE.md` and `.cursor/CODEGUARD_NOTICE.md`). Antares weights are Apache-2.0 from Cisco Foundation AI / Hugging Face.
