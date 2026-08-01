@@ -1,0 +1,6 @@
+include:
+  - "**/*"
+exclude:
+  - ".git/**"
+  - "node_modules/**"
+  - ".venv/**"
