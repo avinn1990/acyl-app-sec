@@ -28,6 +28,7 @@ class ScanResult:
     db_path: Path
     report_dir: Path
     counts: dict[str, Any]
+    goals_source: str = ""
 
 
 def run_scan(
@@ -74,7 +75,10 @@ def run_scan(
     (artifacts / "index.json").write_text(json.dumps(index.to_dict(), indent=2), encoding="utf-8")
     write_security_map(index, artifacts / "security-map.md")
 
-    counts: dict[str, Any] = {}
+    counts: dict[str, Any] = {
+        "goals_source": target.goals_source,
+        "goals_count": len(target.goals),
+    }
     counts["secrets"] = detect_secrets(store, run_id, target.path)
     counts["sca"] = detect_sca(store, run_id, target.path)
     counts["codeguard"] = detect_codeguard_presence(store, run_id, target.path)
@@ -120,6 +124,7 @@ def run_scan(
                 "run_id": run_id,
                 "target": str(target.path),
                 "revision": target.pinned_revision,
+                "goals_source": target.goals_source,
                 "counts": counts,
             },
             indent=2,
@@ -127,7 +132,13 @@ def run_scan(
         encoding="utf-8",
     )
     store.close()
-    return ScanResult(run_id=run_id, db_path=db_path, report_dir=report_dir, counts=counts)
+    return ScanResult(
+        run_id=run_id,
+        db_path=db_path,
+        report_dir=report_dir,
+        counts=counts,
+        goals_source=target.goals_source,
+    )
 
 
 def fix_from_run(run_id: str, finding_id: str, *, offline: bool = False) -> Any:

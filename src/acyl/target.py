@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from acyl.paths import default_data_dir
+from acyl.paths import default_data_dir, default_goals_file
 
 
 @dataclass
@@ -21,6 +21,7 @@ class Target:
     git_url: str | None
     scope: dict[str, Any]
     goals: list[dict[str, Any]]
+    goals_source: str = ""
 
 
 DEFAULT_SCOPE = {
@@ -80,29 +81,60 @@ def load_scope(path: Path) -> dict[str, Any]:
     return dict(DEFAULT_SCOPE)
 
 
-def load_goals(path: Path, goals_file: Path | None = None) -> list[dict[str, Any]]:
-    candidates: list[Path] = []
-    if goals_file:
-        candidates.append(goals_file)
-    candidates.extend(
-        [
-            path / "goals.md",
-            path / ".acyl" / "goals.md",
-            path / "goals.yml",
-            path / "goals.yaml",
-        ]
-    )
-    for candidate in candidates:
+def _read_goals_file(candidate: Path) -> list[dict[str, Any]]:
+    if candidate.suffix in {".yml", ".yaml"}:
+        data = yaml.safe_load(candidate.read_text(encoding="utf-8")) or []
+        if isinstance(data, dict):
+            data = data.get("goals", [])
+        goals = list(data)
+    else:
+        goals = parse_goals_markdown(candidate.read_text(encoding="utf-8"))
+    if not goals:
+        raise ValueError(f"Goals document is empty ({candidate}); refusing to start a scan.")
+    return goals
+
+
+def load_goals(
+    path: Path, goals_file: Path | None = None
+) -> tuple[list[dict[str, Any]], str]:
+    """Load goals with default fallback.
+
+    Resolution order:
+      1. Explicit goals_file (--goals)
+      2. Target-local goals.md / .acyl/goals.md / goals.yml
+      3. Env ACYL_GOALS_FILE
+      4. Bundled goals/standard.md
+    """
+    import os
+
+    if goals_file is not None:
+        candidate = Path(goals_file).expanduser()
         if not candidate.is_file():
-            continue
-        if candidate.suffix in {".yml", ".yaml"}:
-            data = yaml.safe_load(candidate.read_text(encoding="utf-8")) or []
-            if isinstance(data, dict):
-                data = data.get("goals", [])
-            return list(data)
-        return parse_goals_markdown(candidate.read_text(encoding="utf-8"))
+            raise FileNotFoundError(f"Goals file not found: {candidate}")
+        return _read_goals_file(candidate), str(candidate.resolve())
+
+    for candidate in (
+        path / "goals.md",
+        path / ".acyl" / "goals.md",
+        path / "goals.yml",
+        path / "goals.yaml",
+    ):
+        if candidate.is_file():
+            return _read_goals_file(candidate), str(candidate.resolve())
+
+    env_goals = os.environ.get("ACYL_GOALS_FILE")
+    if env_goals:
+        candidate = Path(env_goals).expanduser()
+        if candidate.is_file():
+            return _read_goals_file(candidate), str(candidate.resolve())
+
+    bundled = default_goals_file()
+    if bundled.is_file():
+        return _read_goals_file(bundled), str(bundled.resolve())
+
     raise ValueError(
-        "No goals document found. Create goals.md (or pass --goals). Empty goals block the run."
+        "No goals document found. Bundled goals/standard.md is missing from this install. "
+        "Pass --goals or set ACYL_GOALS_FILE."
     )
 
 
@@ -115,15 +147,29 @@ def parse_goals_markdown(text: str) -> list[dict[str, Any]]:
             if current:
                 goals.append(current)
             title = line[3:].strip()
-            current = {"id": title.lower().replace(" ", "-"), "title": title, "cwe": None, "body": ""}
+            current = {
+                "id": title.lower().replace(" ", "-"),
+                "title": title,
+                "cwe": None,
+                "owasp": None,
+                "codeguard": None,
+                "body": "",
+            }
             continue
         if current is None:
             continue
-        if line.lower().startswith("cwe:"):
+        lower = line.lower()
+        if lower.startswith("cwe:"):
             current["cwe"] = line.split(":", 1)[1].strip()
-        elif line.lower().startswith("id:"):
+        elif lower.startswith("id:"):
             current["id"] = line.split(":", 1)[1].strip()
-        elif line.startswith("- ") or line:
+        elif lower.startswith("owasp:"):
+            current["owasp"] = line.split(":", 1)[1].strip()
+        elif lower.startswith("codeguard:"):
+            current["codeguard"] = line.split(":", 1)[1].strip()
+        elif line.startswith(("# ", "#acyl")):
+            continue
+        elif line:
             current["body"] = (current.get("body") or "") + line + "\n"
     if current:
         goals.append(current)
@@ -141,6 +187,8 @@ def parse_goals_markdown(text: str) -> list[dict[str, Any]]:
                         "id": item.lower().replace(" ", "-")[:64],
                         "title": item,
                         "cwe": cwe,
+                        "owasp": None,
+                        "codeguard": None,
                         "body": item,
                     }
                 )
@@ -176,13 +224,14 @@ def prepare_target(
         raise FileNotFoundError(path)
     pinned = revision or resolve_revision(path)
     scope = load_scope(path)
-    goals = load_goals(path, goals_file=goals_file)
+    goals, goals_source = load_goals(path, goals_file=goals_file)
     return Target(
         path=path,
         pinned_revision=pinned,
         git_url=git_url,
         scope=scope,
         goals=goals,
+        goals_source=goals_source,
     )
 
 

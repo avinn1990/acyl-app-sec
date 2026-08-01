@@ -40,8 +40,11 @@ packages = ["src/acyl"]
 [tool.hatch.build.targets.wheel.sources]
 "src/acyl" = "acyl"
 
+[tool.hatch.build.targets.wheel.force-include]
+"goals" = "acyl/goals"
+
 [tool.hatch.build.targets.sdist]
-include = ["src/acyl", "rules", "vendor/codeguard/SHA256SUMS", "specs", "examples", "fixtures"]
+include = ["src/acyl", "rules", "goals", "vendor/codeguard/SHA256SUMS", "specs", "examples", "fixtures", "docs"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

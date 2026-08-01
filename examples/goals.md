@@ -1,21 +1,16 @@
-# Example goals.md
+# Example goals (stub)
 
-Copy this file into a repository (or pass `--goals`) before scanning.
-Empty goals block the run.
+acyl now ships a **bundled default** at [`goals/standard.md`](../goals/standard.md).
 
-## Secret exposure
-CWE: CWE-798
-id: secrets
+You do **not** need to copy goals into every repo:
 
-Find committed secrets, tokens, and hard-coded credentials.
+```bash
+acyl scan /path/to/any-repo
+# uses goals/standard.md automatically
+```
 
-## Injection
-CWE: CWE-78
-id: command-injection
+- Full baseline: [`goals/standard.md`](../goals/standard.md)
+- Fast preset: [`goals/minimal.md`](../goals/minimal.md)
+- How goals work: [`docs/GOALS.md`](../docs/GOALS.md)
 
-Locate OS command injection sinks reachable from untrusted input.
-
-## Dependency risk
-id: sca
-
-Review third-party dependencies for known vulnerable versions.
+Only add a local `goals.md` here if you want to **replace** the default for a specific target.

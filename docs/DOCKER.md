@@ -19,6 +19,7 @@ The compose file mounts `./fixtures/vulnerable-app` at `/targets/app`. In the da
 ```
 
 Leave “Skip Antares” and “No Docker sandbox” checked for the default image.
+Goals default to the bundled `/app/goals/standard.md` when the mounted target has no `goals.md`.
 
 ### Scan your own repo
 

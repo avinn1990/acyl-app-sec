@@ -1,5 +1,5 @@
 from acyl.fingerprint import fingerprint
-from acyl.paths import default_data_dir, default_rules_dir
+from acyl.paths import default_data_dir, default_goals_file, default_rules_dir
 
 
 def test_fingerprint_ignores_line_numbers_and_is_stable():
@@ -18,4 +18,9 @@ def test_data_dir_env(tmp_path, monkeypatch):
 
 def test_rules_dir_exists():
     assert default_rules_dir().is_dir()
+
+
+def test_default_goals_file_exists():
+    assert default_goals_file().is_file()
+    assert default_goals_file().name == "standard.md"
 

@@ -117,7 +117,7 @@ async function renderScan() {
   app.innerHTML = `
     <section class="hero">
       <h1>New scan</h1>
-      <p>Point acyl at a local checkout or git URL. Goals are required — empty goals block the run.</p>
+      <p>Point acyl at a local checkout or git URL. Leave goals blank to use the bundled <span class="mono">goals/standard.md</span> default.</p>
     </section>
     <section class="panel">
       <form class="form" id="scan-form">
@@ -130,8 +130,8 @@ async function renderScan() {
           <input id="git_url" name="git_url" type="text" placeholder="git@github.com:org/repo.git" />
         </div>
         <div class="field">
-          <label for="goals">Goals file (optional if repo has goals.md)</label>
-          <input id="goals" name="goals" type="text" placeholder="examples/goals.md" />
+          <label for="goals">Goals file (optional — defaults to bundled standard.md)</label>
+          <input id="goals" name="goals" type="text" placeholder="goals/minimal.md or leave empty" />
         </div>
         <div class="field">
           <label for="revision">Pinned revision (optional)</label>

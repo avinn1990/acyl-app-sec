@@ -58,16 +58,19 @@ docker run --rm -p 127.0.0.1:8787:8787 \
 Published images (after merge to `main`): `ghcr.io/avinn1990/acyl-app-sec:latest`  
 Full guide: [docs/DOCKER.md](docs/DOCKER.md).
 
-Scan any local checkout (public or private):
+Scan any local checkout (public or private). **No per-repo `goals.md` required** — acyl uses bundled [`goals/standard.md`](goals/standard.md) by default:
 
 ```bash
-acyl scan /path/to/repo --goals examples/goals.md --no-antares
+acyl scan /path/to/repo --no-antares
+# prints: Using goals: …/goals/standard.md
 ```
+
+Override with `--goals`, a repo-local `goals.md`, or `ACYL_GOALS_FILE`. See [docs/GOALS.md](docs/GOALS.md).
 
 Private repos via git URL use your existing host credentials (`ssh-agent`, `gh auth`, git credential helper). acyl does not store PATs.
 
 ```bash
-acyl scan --git-url git@github.com:org/private-repo.git --goals examples/goals.md
+acyl scan --git-url git@github.com:org/private-repo.git --no-antares
 ```
 
 ## Antares model hosting
