@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>acyl — local AppSec</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true"></div>
+    <header class="top">
+      <a class="brand" href="#/" data-link>
+        <span class="brand-mark">acyl</span>
+        <span class="brand-sub">local appsec</span>
+      </a>
+      <nav class="nav">
+        <a href="#/" data-link>Runs</a>
+        <a href="#/scan" data-link>New scan</a>
+      </nav>
+      <div class="pulse" id="health-pill" title="API health">idle</div>
+    </header>
+
+    <main id="app" class="shell">
+      <p class="loading">Loading…</p>
+    </main>
+
+    <footer class="foot">
+      <span>Bound to localhost · findings stay on this machine</span>
+      <span id="cache-hint"></span>
+    </footer>
+    <script src="/static/app.js" type="module"></script>
+  </body>
+</html>
