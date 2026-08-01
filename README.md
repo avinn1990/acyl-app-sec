@@ -37,6 +37,27 @@ acyl dashboard
 
 The dashboard lists runs, shows confirmed / needs-review findings with evidence, renders reports, and can queue new scans or offline autofixes. It binds to localhost by default.
 
+### Docker (recommended for “download and run”)
+
+```bash
+# From a clone:
+docker compose up --build
+# open http://127.0.0.1:8787  → scan path: /targets/app
+
+# Your own repo:
+ACYL_TARGET=/absolute/path/to/repo docker compose up --build
+
+# Or one-shot:
+docker build -t acyl:local .
+docker run --rm -p 127.0.0.1:8787:8787 \
+  -v acyl-data:/data \
+  -v /absolute/path/to/repo:/targets/app:ro \
+  acyl:local
+```
+
+Published images (after merge to `main`): `ghcr.io/avinn1990/acyl-app-sec:latest`  
+Full guide: [docs/DOCKER.md](docs/DOCKER.md).
+
 Scan any local checkout (public or private):
 
 ```bash

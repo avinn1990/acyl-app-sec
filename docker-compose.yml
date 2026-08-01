@@ -1,0 +1,35 @@
+# Local AppSec stack — dashboard + persistent run store
+#
+# Usage:
+#   docker compose up --build
+#   open http://127.0.0.1:8787
+#   In the UI, scan path: /targets/app
+#
+# Point at your repo:
+#   ACYL_TARGET=/absolute/path/to/repo docker compose up --build
+
+services:
+  acyl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/avinn1990/acyl-app-sec:latest
+    container_name: acyl
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      HOME: /data
+      ACYL_DATA_DIR: /data/.cache/acyl
+      ACYL_RULES_DIR: /app/rules
+      ACYL_MODEL_MOCK: "${ACYL_MODEL_MOCK:-1}"
+      ACYL_OFFLINE: "${ACYL_OFFLINE:-1}"
+    volumes:
+      - acyl-data:/data
+      # Mount the repo you want to scan (read-only)
+      - ${ACYL_TARGET:-./fixtures/vulnerable-app}:/targets/app:ro
+      # Optional: mount extra checkouts under /targets
+      # - /Users/you/code:/targets/code:ro
+    restart: unless-stopped
+
+volumes:
+  acyl-data:

@@ -123,7 +123,7 @@ async function renderScan() {
       <form class="form" id="scan-form">
         <div class="field">
           <label for="path">Local path</label>
-          <input id="path" name="path" type="text" placeholder="/path/to/repo or fixtures/vulnerable-app" />
+          <input id="path" name="path" type="text" placeholder="/targets/app or /path/to/repo" />
         </div>
         <div class="field">
           <label for="git_url">Git URL (optional)</label>

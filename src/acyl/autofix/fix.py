@@ -58,7 +58,9 @@ def autofix_finding(
             message="No automatic fix produced; manual remediation required.",
         )
 
-    out = Path.home() / ".cache" / "acyl" / "runs" / finding["run_id"] / "fixes"
+    from acyl.paths import runs_dir
+
+    out = runs_dir() / finding["run_id"] / "fixes"
     out.mkdir(parents=True, exist_ok=True)
     patch_path = out / f"{slug}.patch"
     diff = subprocess.run(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 PKG_ROOT = Path(__file__).resolve().parent
@@ -14,14 +15,27 @@ def repo_root() -> Path:
 
 
 def default_rules_dir() -> Path:
-    candidate = repo_root() / "rules"
-    if candidate.is_dir():
-        return candidate
-    return PKG_ROOT / "rules"
+    env = os.environ.get("ACYL_RULES_DIR")
+    if env:
+        return Path(env)
+    for candidate in (
+        Path("/app/rules"),
+        repo_root() / "rules",
+        PKG_ROOT / "rules",
+    ):
+        if candidate.is_dir():
+            return candidate
+    return repo_root() / "rules"
 
 
 def default_data_dir() -> Path:
-    return Path.home() / ".cache" / "acyl"
+    env = os.environ.get("ACYL_DATA_DIR")
+    if env:
+        path = Path(env)
+    else:
+        path = Path.home() / ".cache" / "acyl"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def models_dir() -> Path:
