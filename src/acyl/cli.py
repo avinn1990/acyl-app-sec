@@ -175,6 +175,18 @@ def serve_model_cmd(
     run_server(host=host, port=port, model_id=model_id, mock=mock)
 
 
+@app.command("dashboard")
+def dashboard_cmd(
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind address (localhost by default)"),
+    port: int = typer.Option(8787, "--port"),
+) -> None:
+    """Open the local web dashboard for runs, findings, and scans."""
+    from acyl.dashboard import run_dashboard
+
+    print(f"[bold green]acyl dashboard[/bold green] http://{host}:{port}")
+    run_dashboard(host=host, port=port)
+
+
 @app.command("coverage")
 def coverage_cmd(run_id: str = typer.Argument(...)) -> None:
     """Show coverage checklist for a run."""

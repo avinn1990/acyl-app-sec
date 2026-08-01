@@ -28,6 +28,15 @@ acyl findings <run_id> --state confirmed
 acyl report <run_id> --open
 ```
 
+### Web dashboard
+
+```bash
+acyl dashboard
+# open http://127.0.0.1:8787
+```
+
+The dashboard lists runs, shows confirmed / needs-review findings with evidence, renders reports, and can queue new scans or offline autofixes. It binds to localhost by default.
+
 Scan any local checkout (public or private):
 
 ```bash
@@ -76,6 +85,7 @@ acyl report RUN_ID [--open]
 acyl coverage RUN_ID
 acyl fix --finding FIND_ID [--run RUN_ID] [--offline]
 acyl serve-model [--mock] [--port 8080]
+acyl dashboard [--host 127.0.0.1] [--port 8787]
 ```
 
 ## License
