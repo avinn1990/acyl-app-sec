@@ -26,6 +26,7 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 COPY rules ./rules
+COPY goals ./goals
 COPY examples ./examples
 COPY fixtures ./fixtures
 COPY specs ./specs

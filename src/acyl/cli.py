@@ -62,6 +62,7 @@ def scan_cmd(
         include_candidates=include_candidates,
     )
     print(f"[bold green]Scan complete[/bold green] run={result.run_id}")
+    print(f"Using goals: {result.goals_source or result.counts.get('goals_source')}")
     print(f"DB: {result.db_path}")
     print(f"Report: {result.report_dir / 'summary.md'}")
     print(json.dumps(result.counts, indent=2))

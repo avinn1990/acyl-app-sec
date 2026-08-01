@@ -28,6 +28,18 @@ def default_rules_dir() -> Path:
     return repo_root() / "rules"
 
 
+def default_goals_file() -> Path:
+    """Resolve the bundled standard goals pack."""
+    for candidate in (
+        Path("/app/goals/standard.md"),
+        repo_root() / "goals" / "standard.md",
+        PKG_ROOT / "goals" / "standard.md",
+    ):
+        if candidate.is_file():
+            return candidate
+    return repo_root() / "goals" / "standard.md"
+
+
 def default_data_dir() -> Path:
     env = os.environ.get("ACYL_DATA_DIR")
     if env:
