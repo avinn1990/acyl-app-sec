@@ -122,12 +122,17 @@ def _generate(state: dict[str, Any], req: ChatRequest) -> str:
         return_dict=True,
     )
     prompt_length = inputs["input_ids"].shape[-1]
+    # use_cache=False: workaround for transformers GraniteMoeHybrid bug where
+    # attention-only models (Antares/Granite 4.0 350M) crash with:
+    # ValueError: has_previous_state can only be called on LinearAttention layers
+    # (huggingface/transformers#45507). Remove when transformers is fixed.
     output = model.generate(
         **inputs,
         do_sample=True,
         temperature=req.temperature,
         top_p=req.top_p,
         max_new_tokens=req.max_tokens,
+        use_cache=False,
     )
     return tokenizer.decode(output[0][prompt_length:], skip_special_tokens=False)
 
