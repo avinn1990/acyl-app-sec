@@ -67,7 +67,7 @@ async function renderHome() {
   const review = runs.reduce((n, r) => n + (r.needs_review || 0), 0);
   app.innerHTML = `
     <section class="hero">
-      <h1>acyl</h1>
+      <h1>Foundry Spec Repository Scanning</h1>
       <p>Local AppSec control surface. Browse scan runs, triage survivors, and launch new evaluations without leaving your machine.</p>
     </section>
     <section class="stats">
@@ -117,7 +117,7 @@ async function renderScan() {
   app.innerHTML = `
     <section class="hero">
       <h1>New scan</h1>
-      <p>Point acyl at a local checkout or git URL. Leave goals blank to use the bundled <span class="mono">goals/standard.md</span> default.</p>
+      <p>Point Foundry Spec Repository Scanning at a local checkout or git URL. Leave goals blank to use the bundled <span class="mono">goals/standard.md</span> default.</p>
     </section>
     <section class="panel">
       <form class="form" id="scan-form">
