@@ -5,6 +5,10 @@
 
 Each goal in the standard pack maps to CWEs, OWASP Top 10:2025 categories, and related CodeGuard rule IDs so Antares localization and coverage tracking stay aligned.
 
+## SCA → Antares (additive)
+
+When Antares is enabled, the SCA detector still records **all** advisory severities. Separately, high and critical hits are turned into extra Antares localization goals (one per advisory, capped at 40) and enqueued **in addition to** the goals file — static goals such as `supply-chain` are not dropped or replaced. Medium/low advisories stay SCA-only findings and are not sent to the LLM. Disable with `--no-antares`.
+
 ## Default behavior
 
 You only need a repo path. If the target has no local goals file, acyl uses the bundled baseline:

@@ -9,7 +9,7 @@ Inspired by the Aikido-style scan → denoise → fix loop, but fully local:
 | SAST-ish rules | Project CodeGuard v1.4.0 presence sweeps (+ optional LLM rule eval) |
 | Localization | Cisco Antares-350M terminal agent (localhost) |
 | Secrets | `gitleaks` when installed, else regex fallback |
-| SCA | `osv-scanner` when installed, else manifest heuristic |
+| SCA | `osv-scanner` when installed, else manifest heuristic; all severities stored; high/critical also become additive Antares goals (cap 40) when Antares is on |
 | Triage | Foundry evidence gate (presence carve-out for secrets/creds) |
 | Reports | Markdown + SARIF under `~/.cache/acyl/runs/<id>/reports/` |
 | Autofix | Gated on confirmed true-positives → patch or draft PR |
