@@ -46,7 +46,14 @@ def run_scan(
     include_candidates: bool = False,
     cancel_event: threading.Event | None = None,
     on_run_created: Callable[[str], None] | None = None,
+    on_progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> ScanResult:
+    def progress(phase: str, message: str, **extra: Any) -> None:
+        if on_progress is None:
+            return
+        payload: dict[str, Any] = {"phase": phase, "message": message, **extra}
+        on_progress(payload)
+
     target: Target = prepare_target(
         path=path,
         git_url=git_url,
@@ -85,6 +92,7 @@ def run_scan(
 
     try:
         check()
+        progress("index", "Indexing repository…")
         index = build_index(target.path, target.scope)
         (artifacts / "index.json").write_text(json.dumps(index.to_dict(), indent=2), encoding="utf-8")
         write_security_map(index, artifacts / "security-map.md")
@@ -94,32 +102,49 @@ def run_scan(
             "goals_count": len(target.goals),
         }
         check()
+        progress("secrets", "Scanning for secrets…")
         counts["secrets"] = detect_secrets(store, run_id, target.path)
         check()
+        progress("sca", "Scanning dependencies (SCA)…")
         counts["sca"] = detect_sca(store, run_id, target.path)
         check()
+        progress("codeguard", "Running CodeGuard presence sweep…")
         counts["codeguard"] = detect_codeguard_presence(store, run_id, target.path)
 
         if enable_antares:
             antares_hits = 0
-            for goal in target.goals:
+            antares_goals = [
+                g
+                for g in target.goals
+                if g.get("cwe") or "cwe" in (g.get("title") or "").lower() or g.get("body")
+            ]
+            total = len(antares_goals)
+            for idx, goal in enumerate(antares_goals, start=1):
                 check()
-                if goal.get("cwe") or "cwe" in (goal.get("title") or "").lower() or goal.get("body"):
-                    antares_hits += run_antares_localization(
-                        store,
-                        run_id,
-                        target.path,
-                        goal,
-                        artifacts=artifacts,
-                        use_docker=use_docker,
-                        cancel_check=check,
-                    )
+                goal_label = str(goal.get("id") or goal.get("cwe") or goal.get("title") or idx)
+                progress(
+                    "antares",
+                    f"Antares localizing {goal_label} ({idx}/{total})…",
+                    current=idx,
+                    total=total,
+                    goal=goal_label,
+                )
+                antares_hits += run_antares_localization(
+                    store,
+                    run_id,
+                    target.path,
+                    goal,
+                    artifacts=artifacts,
+                    use_docker=use_docker,
+                    cancel_check=check,
+                )
             counts["antares"] = antares_hits
         else:
             counts["antares"] = 0
 
         check()
         if enable_llm_codeguard:
+            progress("codeguard_llm", "Running CodeGuard LLM sweep…")
             counts["codeguard_llm"] = llm_codeguard_sweep(
                 store,
                 run_id,
@@ -130,8 +155,10 @@ def run_scan(
             counts["codeguard_llm"] = 0
 
         check()
+        progress("triage", "Triaging findings…")
         counts["triage"] = triage_run(store, run_id, target.path)
         check()
+        progress("report", "Writing reports…")
         paths = write_reports(
             store,
             run_id,
@@ -153,6 +180,7 @@ def run_scan(
             ),
             encoding="utf-8",
         )
+        progress("done", "Scan complete")
         return ScanResult(
             run_id=run_id,
             db_path=db_path,

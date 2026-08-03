@@ -104,7 +104,13 @@ def _run_summary(run_dir: Path) -> dict[str, Any]:
                     "running",
                     "stopping",
                 }:
-                    active_job = {"id": job["id"], "status": job["status"]}
+                    active_job = {
+                        "id": job["id"],
+                        "status": job["status"],
+                        "phase": job.get("phase"),
+                        "message": job.get("message"),
+                        "progress": job.get("progress"),
+                    }
                     break
         return {
             "id": run_dir.name,
@@ -326,11 +332,26 @@ def build_dashboard_app() -> FastAPI:
                 job["error"] = "stopped by operator"
                 return
             job["status"] = "running"
+            job["phase"] = "starting"
+            job["message"] = "Starting scan…"
 
         def on_run_created(run_id: str) -> None:
             with _JOBS_LOCK:
                 if job_id in _JOBS:
                     _JOBS[job_id]["run_id"] = run_id
+
+        def on_progress(payload: dict[str, Any]) -> None:
+            with _JOBS_LOCK:
+                job = _JOBS.get(job_id)
+                if not job:
+                    return
+                job["phase"] = payload.get("phase")
+                job["message"] = payload.get("message")
+                job["progress"] = {
+                    k: payload[k]
+                    for k in ("current", "total", "goal")
+                    if k in payload
+                } or None
 
         try:
             result = run_scan(
@@ -343,6 +364,7 @@ def build_dashboard_app() -> FastAPI:
                 use_docker=False if req.no_docker else None,
                 cancel_event=cancel_event,
                 on_run_created=on_run_created,
+                on_progress=on_progress,
             )
             with _JOBS_LOCK:
                 job = _JOBS.get(job_id)
@@ -363,6 +385,8 @@ def build_dashboard_app() -> FastAPI:
                             "run_id": result.run_id,
                             "counts": result.counts,
                             "report_dir": str(result.report_dir),
+                            "phase": "done",
+                            "message": "Scan complete",
                         }
                     )
         except ScanCancelled as exc:
@@ -401,6 +425,9 @@ def build_dashboard_app() -> FastAPI:
             "started_at": utcnow(),
             "run_id": None,
             "error": None,
+            "phase": "queued",
+            "message": "Queued…",
+            "progress": None,
             "cancel_event": cancel_event,
         }
         with _JOBS_LOCK:

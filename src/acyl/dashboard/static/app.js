@@ -82,13 +82,14 @@ async function renderHome() {
         ? `<section class="panel">
       <div class="panel-head"><h2>Active jobs</h2></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Job</th><th>Status</th><th>Run</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Job</th><th>Status</th><th>Phase</th><th>Run</th><th>Actions</th></tr></thead>
         <tbody>
           ${activeJobs
             .map(
               (j) => `<tr>
               <td class="mono">${esc(j.id)}</td>
               <td>${badge(j.status, j.status === "stopping" ? "warn" : "info")}</td>
+              <td>${esc(j.message || j.phase || "—")}</td>
               <td class="mono">${
                 j.run_id ? `<a href="#/runs/${esc(j.run_id)}" data-link>${esc(j.run_id)}</a>` : "—"
               }</td>
@@ -142,6 +143,7 @@ async function renderHome() {
     </section>
   `;
   bindRunControls(app, () => render());
+  if (activeJobs.length) scheduleLiveRefresh();
 }
 
 function shortPath(path) {
@@ -291,9 +293,14 @@ async function pollJob(jobId, statusEl, btn, stopBtn, onDone) {
   const tick = async () => {
     try {
       const job = await api(`/api/jobs/${jobId}`);
+      const phaseBit = job.message || job.phase || "";
+      const progressBit =
+        job.progress && job.progress.current && job.progress.total
+          ? ` [${job.progress.current}/${job.progress.total}]`
+          : "";
       statusEl.textContent = `Job ${job.id}: ${job.status}${job.run_id ? ` → ${job.run_id}` : ""}${
-        job.error ? ` — ${job.error}` : ""
-      }`;
+        phaseBit ? ` · ${phaseBit}${progressBit}` : ""
+      }${job.error ? ` — ${job.error}` : ""}`;
       if (job.status === "completed" && job.run_id) {
         toast(`Scan complete: ${job.run_id}`);
         btn.disabled = false;
@@ -349,6 +356,13 @@ async function renderRun(id, tab) {
       <p class="mono">${esc(run.target_path || "")}<br/>rev ${esc(run.pinned_revision || "—")} · state ${esc(
         run.state || "—"
       )}</p>
+      ${
+        run.active_job
+          ? `<p class="mono" style="margin-top:.75rem;color:var(--muted)">In progress: ${esc(
+              run.active_job.message || run.active_job.phase || run.active_job.status
+            )}</p>`
+          : ""
+      }
       <div class="actions" style="margin-top:1rem">
         ${
           run.active_job
@@ -389,6 +403,8 @@ async function renderRun(id, tab) {
     location.hash = "#/";
     render();
   });
+
+  if (run.active_job) scheduleLiveRefresh();
 
   const body = document.getElementById("run-body");
   if (tab === "report") {
@@ -481,6 +497,16 @@ async function render() {
   } catch (err) {
     app.innerHTML = `<div class="empty">Failed to load: ${esc(err.message || err)}</div>`;
   }
+}
+
+let _liveTimer = null;
+function scheduleLiveRefresh(ms = 2000) {
+  if (_liveTimer) clearTimeout(_liveTimer);
+  _liveTimer = setTimeout(() => {
+    _liveTimer = null;
+    const r = route();
+    if (r.name === "home" || r.name === "run") render();
+  }, ms);
 }
 
 async function refreshHealth() {
