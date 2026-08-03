@@ -73,11 +73,31 @@ Private repos via git URL use your existing host credentials (`ssh-agent`, `gh a
 acyl scan --git-url git@github.com:org/private-repo.git --no-antares
 ```
 
+## Local install from scratch
+
+Full step-by-step for a fresh machine (macOS or Linux), including real Antares inference, dashboard, everyday workflow, Docker-only option, Ollama permanent hosting, and troubleshooting:
+
+**→ [docs/LOCAL.md](docs/LOCAL.md)**
+
+| Step | What |
+|---|---|
+| 0 | What you end up with (CLI, dashboard `:8787`, model `:8080`) |
+| 1 | Base tooling (Xcode CLT / Homebrew / Python ≥ 3.12, optional Docker) |
+| 2 | Clone + `pip install -e ".[dev,model]"` |
+| 3 | Hugging Face gated access + `huggingface-cli login` |
+| 4 | `acyl serve-model` (real weights or mock; transformers pin notes) |
+| 5 | `acyl dashboard` on http://127.0.0.1:8787 |
+| 6 | First scan (CLI + UI) |
+| 7 | Everyday two-process workflow |
+| 8 | Optional Docker-only path |
+
 ## Antares model hosting
 
 Cisco Antares-350M (`fdtn-ai/antares-350m`) is a gated, on-prem vulnerability-localization model built on IBM Granite 4.0 350M. acyl runs it **only on the operator machine** via an OpenAI-compatible localhost server; the Antares **agent loop** (outside the model) executes allowlisted shell commands in a Docker sandbox with `network=none` (or an in-process allowlisted shell when Docker is disabled).
 
 Autofix uses a **separate** optional endpoint `ACYL_FIX_MODEL_URL`. SCA bumps and secret redaction stubs work with no LLM. For CI / dogfood without weights: `acyl serve-model --mock`.
+
+For always-on shared inference callable by **any** local OpenAI-compatible web app, see [docs/LOCAL.md § Permanent shared inference (Ollama)](docs/LOCAL.md#permanent-shared-inference-ollama).
 
 ### Install Antares (local / Mac Mini)
 
