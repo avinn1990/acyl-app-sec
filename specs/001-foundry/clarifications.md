@@ -29,6 +29,13 @@ Status: clarified for acyl-app-sec v0.1 (personal/local tool).
 | Self-improver | No (rule-gap records only) |
 | Variant-hunter | No |
 
+## Worker concurrency
+
+| Agent family | Max workers |
+|---|---|
+| Indexer, Cartographer, Triager, Reporter | 1 |
+| Detector (secrets / SCA / CodeGuard / Antares) | 2 |
+
 ## Policy
 
 - Detectors never open GitHub Issues

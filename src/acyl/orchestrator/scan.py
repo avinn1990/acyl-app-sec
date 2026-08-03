@@ -1,8 +1,7 @@
-"""Orchestrator: end-to-end scan pipeline."""
+"""Orchestrator: multi-agent scan pipeline over the Foundry task queue."""
 
 from __future__ import annotations
 
-import json
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -10,19 +9,12 @@ from pathlib import Path
 from typing import Any
 
 from acyl.autofix.fix import autofix_finding
-from acyl.cartographer import write_security_map
-from acyl.detectors.antares import run_antares_localization
-from acyl.detectors.codeguard import detect_codeguard_presence
-from acyl.detectors.sca import detect_sca
-from acyl.detectors.secrets import detect_secrets
-from acyl.indexer import build_index
+from acyl.orchestrator.pipeline import PipelineContext, seed_pipeline
+from acyl.orchestrator.workers import run_worker_pool
 from acyl.paths import runs_dir
-from acyl.reporter import write_reports
 from acyl.scan_control import ScanCancelled, make_cancel_check
 from acyl.substrate import Store
 from acyl.target import Target, prepare_target
-from acyl.triager import triage_run
-from acyl.triager.triage import llm_codeguard_sweep
 
 
 @dataclass
@@ -64,7 +56,6 @@ def run_scan(
     check = make_cancel_check(cancel_event, run_id_holder)
     check()
 
-    # create store first with temp then move under run id
     tmp_store_path = runs_dir() / "_tmp.db"
     if tmp_store_path.exists():
         tmp_store_path.unlink()
@@ -92,95 +83,21 @@ def run_scan(
 
     try:
         check()
-        progress("index", "Indexing repository…")
-        index = build_index(target.path, target.scope)
-        (artifacts / "index.json").write_text(json.dumps(index.to_dict(), indent=2), encoding="utf-8")
-        write_security_map(index, artifacts / "security-map.md")
-
-        counts: dict[str, Any] = {
-            "goals_source": target.goals_source,
-            "goals_count": len(target.goals),
-        }
-        check()
-        progress("secrets", "Scanning for secrets…")
-        counts["secrets"] = detect_secrets(store, run_id, target.path)
-        check()
-        progress("sca", "Scanning dependencies (SCA)…")
-        counts["sca"] = detect_sca(store, run_id, target.path)
-        check()
-        progress("codeguard", "Running CodeGuard presence sweep…")
-        counts["codeguard"] = detect_codeguard_presence(store, run_id, target.path)
-
-        if enable_antares:
-            antares_hits = 0
-            antares_goals = [
-                g
-                for g in target.goals
-                if g.get("cwe") or "cwe" in (g.get("title") or "").lower() or g.get("body")
-            ]
-            total = len(antares_goals)
-            for idx, goal in enumerate(antares_goals, start=1):
-                check()
-                goal_label = str(goal.get("id") or goal.get("cwe") or goal.get("title") or idx)
-                progress(
-                    "antares",
-                    f"Antares localizing {goal_label} ({idx}/{total})…",
-                    current=idx,
-                    total=total,
-                    goal=goal_label,
-                )
-                antares_hits += run_antares_localization(
-                    store,
-                    run_id,
-                    target.path,
-                    goal,
-                    artifacts=artifacts,
-                    use_docker=use_docker,
-                    cancel_check=check,
-                )
-            counts["antares"] = antares_hits
-        else:
-            counts["antares"] = 0
-
-        check()
-        if enable_llm_codeguard:
-            progress("codeguard_llm", "Running CodeGuard LLM sweep…")
-            counts["codeguard_llm"] = llm_codeguard_sweep(
-                store,
-                run_id,
-                target.path,
-                index.to_dict()["files"],
-            )
-        else:
-            counts["codeguard_llm"] = 0
-
-        check()
-        progress("triage", "Triaging findings…")
-        counts["triage"] = triage_run(store, run_id, target.path)
-        check()
-        progress("report", "Writing reports…")
-        paths = write_reports(
-            store,
-            run_id,
-            report_dir,
+        ctx = PipelineContext(
+            store=store,
+            run_id=run_id,
+            target=target,
+            artifacts=artifacts,
+            report_dir=report_dir,
+            enable_antares=enable_antares,
+            enable_llm_codeguard=enable_llm_codeguard,
+            use_docker=use_docker,
             include_candidates=include_candidates,
+            cancel_check=check,
+            on_progress=progress,
         )
-        counts["report"] = {k: str(v) for k, v in paths.items()}
-        # Persist a small run manifest
-        (runs_dir() / run_id / "manifest.json").write_text(
-            json.dumps(
-                {
-                    "run_id": run_id,
-                    "target": str(target.path),
-                    "revision": target.pinned_revision,
-                    "goals_source": target.goals_source,
-                    "counts": counts,
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        progress("done", "Scan complete")
+        seed_pipeline(ctx)
+        counts = run_worker_pool(ctx)
         return ScanResult(
             run_id=run_id,
             db_path=db_path,
