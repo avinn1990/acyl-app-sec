@@ -562,6 +562,23 @@ tbody tr:hover {
   font-size: 0.92rem;
 }
 
+.evidence-table {
+  margin-top: 0.75rem;
+}
+
+.evidence-table td {
+  vertical-align: top;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.evidence-other-label,
+.evidence-empty {
+  margin: 0.75rem 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
 .report {
   padding: 1.25rem;
   white-space: pre-wrap;

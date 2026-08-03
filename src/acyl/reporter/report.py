@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from acyl.reporter.evidence_table import markdown_evidence_section
 from acyl.substrate import Store
 
 
@@ -76,16 +77,9 @@ def _markdown(
                 "",
                 f.get("summary") or "",
                 "",
-                "Evidence:",
-                "",
             ]
         )
-        for ev in store.list_evidence(f["id"]):
-            loc = f"`{ev.get('path')}`"
-            if ev.get("line"):
-                loc += f":{ev['line']}"
-            lines.append(f"- **{ev['kind']}** {loc} — {ev.get('note')}")
-        lines.append("")
+        lines.extend(markdown_evidence_section(store.list_evidence(f["id"])))
     lines.extend(["## Coverage", ""])
     for c in coverage:
         lines.append(
