@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -35,7 +36,6 @@ def test_dashboard_lists_runs_and_findings(tmp_path, monkeypatch):
 
 def test_dashboard_scan_endpoint_queues_job(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
-    # seed an empty runs dir
     client = TestClient(build_dashboard_app())
     resp = client.post(
         "/api/scans",
@@ -48,7 +48,6 @@ def test_dashboard_scan_endpoint_queues_job(tmp_path, monkeypatch):
     assert resp.status_code == 200
     job = resp.json()
     assert job["status"] in {"queued", "running", "completed"}
-    # Drain background task
     import time
 
     for _ in range(50):
@@ -61,3 +60,35 @@ def test_dashboard_scan_endpoint_queues_job(tmp_path, monkeypatch):
     store = Store(Path.home() / ".cache" / "acyl" / "runs" / job["run_id"] / "acyl.db")
     assert store.list_findings(job["run_id"])
     store.close()
+
+
+def test_dashboard_scan_defaults_enable_antares(tmp_path, monkeypatch):
+    """Omit no_antares in the JSON body — API default must enable Antares."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    called: dict[str, object] = {}
+
+    def fake_run_scan(**kwargs):
+        called.update(kwargs)
+        return SimpleNamespace(run_id="run_test", counts={}, report_dir=tmp_path)
+
+    monkeypatch.setattr("acyl.dashboard.app.run_scan", fake_run_scan)
+    client = TestClient(build_dashboard_app())
+    resp = client.post(
+        "/api/scans",
+        json={
+            "path": str(Path("fixtures/vulnerable-app").resolve()),
+            "no_docker": True,
+        },
+    )
+    assert resp.status_code == 200
+    import time
+
+    job = resp.json()
+    for _ in range(50):
+        job = client.get(f"/api/jobs/{job['id']}").json()
+        if job["status"] in {"completed", "failed"}:
+            break
+        time.sleep(0.05)
+    assert job["status"] == "completed"
+    assert called.get("enable_antares") is True
+    assert job["request"]["no_antares"] is False

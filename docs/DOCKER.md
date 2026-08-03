@@ -18,7 +18,7 @@ The compose file mounts `./fixtures/vulnerable-app` at `/targets/app`. In the da
 /targets/app
 ```
 
-Leave “Skip Antares” and “No Docker sandbox” checked for the default image.
+Leave **No Docker sandbox** checked for the default image. Antares is on by default in the UI — check **Skip Antares** when using the mock image without a host model server, or leave it unchecked and point `ACYL_MODEL_URL` at a host `serve-model` (see below).
 Goals default to the bundled `/app/goals/standard.md` when the mounted target has no `goals.md`.
 
 ### Scan your own repo
@@ -117,7 +117,7 @@ For real Antares later:
 1. Build/run with model extras (or mount cached weights into `/data/.cache/acyl/models`).
 2. Start `serve-model` in a second container or process.
 3. Set `ACYL_MODEL_URL=http://host.docker.internal:8080/v1` (or a compose service URL).
-4. Uncheck “Skip Antares” in the UI. Nested Docker sandbox is not enabled in-container — keep **No Docker sandbox** checked (uses the in-process allowlisted shell).
+4. Leave **Skip Antares** unchecked in the UI (default). Nested Docker sandbox is not enabled in-container — keep **No Docker sandbox** checked (uses the in-process allowlisted shell).
 
 ---
 

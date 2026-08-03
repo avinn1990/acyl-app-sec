@@ -30,7 +30,7 @@ class ScanRequest(BaseModel):
     git_url: str | None = None
     goals: str | None = None
     revision: str | None = None
-    no_antares: bool = True
+    no_antares: bool = False
     no_docker: bool = True
     llm_codeguard: bool = False
 

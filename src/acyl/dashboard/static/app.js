@@ -138,7 +138,7 @@ async function renderScan() {
           <input id="revision" name="revision" type="text" placeholder="commit sha / tag" />
         </div>
         <div class="checks">
-          <label><input type="checkbox" name="no_antares" checked /> Skip Antares</label>
+          <label><input type="checkbox" name="no_antares" /> Skip Antares</label>
           <label><input type="checkbox" name="no_docker" checked /> No Docker sandbox</label>
           <label><input type="checkbox" name="llm_codeguard" /> CodeGuard LLM sweep</label>
         </div>

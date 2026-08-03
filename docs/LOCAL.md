@@ -204,7 +204,7 @@ acyl report <run_id> --open
 
 1. Click **New scan**
 2. Local path: absolute path to your repo (or the fixture under this clone)
-3. Uncheck **Skip Antares** for real localization
+3. Leave **Skip Antares** unchecked (Antares is on by default) for real localization; check it only to skip
 4. Leave **No Docker sandbox** checked unless Docker Desktop / Engine is up
 5. **Start scan**
 
@@ -256,7 +256,7 @@ ACYL_MODEL_URL=http://host.docker.internal:8080/v1 \
 docker compose up --build
 ```
 
-In the UI, uncheck **Skip Antares**, keep **No Docker sandbox** checked (nested Docker sandbox is not enabled in-container).
+In the UI, leave **Skip Antares** unchecked (default), keep **No Docker sandbox** checked (nested Docker sandbox is not enabled in-container).
 
 Full container details: [DOCKER.md](DOCKER.md).
 
