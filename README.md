@@ -32,7 +32,7 @@ acyl report <run_id> --open
 
 ```bash
 acyl dashboard
-# open http://127.0.0.1:8787
+# open http://127.0.0.1:8888
 ```
 
 The dashboard lists runs, shows confirmed / needs-review findings with evidence, renders reports, and can queue new scans or offline autofixes. It binds to localhost by default.
@@ -42,14 +42,14 @@ The dashboard lists runs, shows confirmed / needs-review findings with evidence,
 ```bash
 # From a clone:
 docker compose up --build
-# open http://127.0.0.1:8787  → scan path: /targets/app
+# open http://127.0.0.1:8888  → scan path: /targets/app
 
 # Your own repo:
 ACYL_TARGET=/absolute/path/to/repo docker compose up --build
 
 # Or one-shot:
 docker build -t acyl:local .
-docker run --rm -p 127.0.0.1:8787:8787 \
+docker run --rm -p 127.0.0.1:8888:8888 \
   -v acyl-data:/data \
   -v /absolute/path/to/repo:/targets/app:ro \
   acyl:local
@@ -81,12 +81,12 @@ Full step-by-step for a fresh machine (macOS or Linux), including real Antares i
 
 | Step | What |
 |---|---|
-| 0 | What you end up with (CLI, dashboard `:8787`, model `:8080`) |
+| 0 | What you end up with (CLI, dashboard `:8888`, model `:8080`) |
 | 1 | Base tooling (Xcode CLT / Homebrew / Python ≥ 3.12, optional Docker) |
 | 2 | Clone + `pip install -e ".[dev,model]"` |
 | 3 | Hugging Face gated access + `huggingface-cli login` |
 | 4 | `acyl serve-model` (real weights or mock; transformers pin notes) |
-| 5 | `acyl dashboard` on http://127.0.0.1:8787 |
+| 5 | `acyl dashboard` on http://127.0.0.1:8888 |
 | 6 | First scan (CLI + UI) |
 | 7 | Everyday two-process workflow |
 | 8 | Optional Docker-only path |
@@ -262,7 +262,7 @@ acyl report RUN_ID [--open]
 acyl coverage RUN_ID
 acyl fix --finding FIND_ID [--run RUN_ID] [--offline]
 acyl serve-model [--mock] [--port 8080]
-acyl dashboard [--host 127.0.0.1] [--port 8787]
+acyl dashboard [--host 127.0.0.1] [--port 8888]
 ```
 
 ## License

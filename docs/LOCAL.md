@@ -7,7 +7,7 @@ Host acyl on a fresh machine (macOS or Linux) with optional real Antares-350M in
 | Piece | Port | Purpose |
 |---|---|---|
 | `acyl` CLI | — | Scan / triage / reports / autofix |
-| Dashboard | `8787` | Web UI for runs, findings, new scans |
+| Dashboard | `8888` | Web UI for runs, findings, new scans |
 | Antares model server | `8080` | Local OpenAI-compatible inference (`fdtn-ai/antares-350m`) |
 
 No cloud database or queue. Run artifacts land under `~/.cache/acyl/`.
@@ -163,10 +163,10 @@ cd ~/src/acyl-app-sec
 source .venv/bin/activate
 unset ACYL_MODEL_MOCK
 
-acyl dashboard --host 127.0.0.1 --port 8787
+acyl dashboard --host 127.0.0.1 --port 8888
 ```
 
-Open http://127.0.0.1:8787
+Open http://127.0.0.1:8888
 
 ---
 
@@ -219,7 +219,7 @@ acyl serve-model --host 127.0.0.1 --port 8080
 
 # Terminal B — UI
 cd ~/src/acyl-app-sec && source .venv/bin/activate && unset ACYL_MODEL_MOCK
-acyl dashboard --host 127.0.0.1 --port 8787
+acyl dashboard --host 127.0.0.1 --port 8888
 ```
 
 Scan via the UI or:
@@ -245,7 +245,7 @@ Good for dashboard + CLI **without** real Antares (image defaults to mock):
 brew install --cask docker   # open Docker Desktop once
 cd ~/src/acyl-app-sec
 docker compose up --build
-# UI: http://127.0.0.1:8787 — scan path: /targets/app
+# UI: http://127.0.0.1:8888 — scan path: /targets/app
 ```
 
 For **real** Antares with a Docker dashboard: run `acyl serve-model` on the host (sections 3–4), then point the container at the host:
@@ -313,6 +313,6 @@ huggingface-cli login
 # every session
 unset ACYL_MODEL_MOCK
 acyl serve-model --port 8080          # terminal 1
-acyl dashboard --port 8787            # terminal 2
+acyl dashboard --port 8888            # terminal 2
 acyl scan fixtures/vulnerable-app --no-docker   # terminal 3
 ```

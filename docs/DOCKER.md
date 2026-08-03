@@ -10,7 +10,7 @@ From a clone of this repo:
 docker compose up --build
 ```
 
-Open **http://127.0.0.1:8787**
+Open **http://127.0.0.1:8888**
 
 The compose file mounts `./fixtures/vulnerable-app` at `/targets/app`. In the dashboard **New scan** form, use:
 
@@ -43,13 +43,13 @@ Run dashboard:
 
 ```bash
 docker run --rm \
-  -p 127.0.0.1:8787:8787 \
+  -p 127.0.0.1:8888:8888 \
   -v acyl-data:/data \
   -v /absolute/path/to/your-repo:/targets/app:ro \
   acyl:local
 ```
 
-Open http://127.0.0.1:8787
+Open http://127.0.0.1:8888
 
 ### CLI scan inside the container
 
@@ -73,7 +73,7 @@ After images are published (CI on `main`):
 docker pull ghcr.io/avinn1990/acyl-app-sec:latest
 
 docker run --rm \
-  -p 127.0.0.1:8787:8787 \
+  -p 127.0.0.1:8888:8888 \
   -v acyl-data:/data \
   -v /absolute/path/to/your-repo:/targets/app:ro \
   ghcr.io/avinn1990/acyl-app-sec:latest
@@ -103,7 +103,7 @@ Environment knobs:
 | `ACYL_RULES_DIR` | `/app/rules` | CodeGuard rule pack |
 | `ACYL_MODEL_MOCK` | `1` | Mock Antares (no GPU/HF in default image) |
 | `ACYL_OFFLINE` | `1` (compose) | Prefer offline autofix patches |
-| `ACYL_DASHBOARD_PORT` | `8787` | Dashboard listen port |
+| `ACYL_DASHBOARD_PORT` | `8888` | Dashboard listen port |
 | `ACYL_MODEL_URL` | unset | Point at a model server if you run one |
 
 ---

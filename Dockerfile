@@ -1,5 +1,5 @@
 # acyl — personal local AppSec platform
-# Default command: web dashboard on :8787
+# Default command: web dashboard on :8888
 FROM python:3.12-slim-bookworm
 
 LABEL org.opencontainers.image.title="acyl"
@@ -13,7 +13,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HOME=/data \
     ACYL_DATA_DIR=/data/.cache/acyl \
     ACYL_RULES_DIR=/app/rules \
-    ACYL_MODEL_MOCK=1
+    ACYL_MODEL_MOCK=1 \
+    ACYL_DASHBOARD_PORT=8888
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
@@ -44,7 +45,7 @@ RUN useradd --create-home --home-dir /data --shell /bin/bash acyl \
 
 USER acyl
 VOLUME ["/data", "/targets"]
-EXPOSE 8787 8080
+EXPOSE 8888 8080
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["dashboard"]

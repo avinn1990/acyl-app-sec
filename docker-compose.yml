@@ -2,7 +2,7 @@
 #
 # Usage:
 #   docker compose up --build
-#   open http://127.0.0.1:8787
+#   open http://127.0.0.1:8888
 #   In the UI, scan path: /targets/app
 #
 # Point at your repo:
@@ -16,13 +16,14 @@ services:
     image: ghcr.io/avinn1990/acyl-app-sec:latest
     container_name: acyl
     ports:
-      - "127.0.0.1:8787:8787"
+      - "127.0.0.1:8888:8888"
     environment:
       HOME: /data
       ACYL_DATA_DIR: /data/.cache/acyl
       ACYL_RULES_DIR: /app/rules
       ACYL_MODEL_MOCK: "${ACYL_MODEL_MOCK:-1}"
       ACYL_OFFLINE: "${ACYL_OFFLINE:-1}"
+      ACYL_DASHBOARD_PORT: "${ACYL_DASHBOARD_PORT:-8888}"
     volumes:
       - acyl-data:/data
       # Mount the repo you want to scan (read-only)
