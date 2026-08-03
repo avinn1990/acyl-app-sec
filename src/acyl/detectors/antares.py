@@ -65,6 +65,13 @@ def run_antares_localization(
     ]
     trace: list[dict[str, Any]] = []
     files: list[str] = []
+    store.set_coverage(
+        run_id,
+        str(goal.get("id") or cwe),
+        "antares",
+        "running",
+        area="localization",
+    )
     with Sandbox(root, artifacts / "antares", use_docker=use_docker) as box:
         for _ in range(max_turns):
             if cancel_check is not None:

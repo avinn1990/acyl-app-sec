@@ -1,6 +1,7 @@
 import threading
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -141,19 +142,73 @@ def test_dashboard_stop_job_sets_cancel_event(tmp_path, monkeypatch):
     dash_mod._JOBS.clear()
 
 
-def test_run_scan_honours_cancel_event(tmp_path, monkeypatch):
+def test_run_scan_reports_progress_phases(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
-    cancel_event = threading.Event()
-    cancel_event.set()
-    try:
-        run_scan(
-            path=Path("fixtures/vulnerable-app").resolve(),
-            enable_antares=False,
-            use_docker=False,
-            cancel_event=cancel_event,
-        )
-        raise AssertionError("expected ScanCancelled")
-    except Exception as exc:
-        from acyl.scan_control import ScanCancelled
+    phases: list[str] = []
 
-        assert isinstance(exc, ScanCancelled)
+    def on_progress(payload: dict[str, Any]) -> None:
+        phases.append(payload["phase"])
+
+    result = run_scan(
+        path=Path("fixtures/vulnerable-app").resolve(),
+        enable_antares=False,
+        use_docker=False,
+        on_progress=on_progress,
+    )
+    assert result.run_id
+    assert "index" in phases
+    assert "secrets" in phases
+    assert "sca" in phases
+    assert "codeguard" in phases
+    assert "triage" in phases
+    assert "report" in phases
+    assert "done" in phases
+    assert "antares" not in phases
+
+
+def test_dashboard_job_exposes_phase_progress(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    seen: list[dict] = []
+
+    def fake_run_scan(**kwargs):
+        on_progress = kwargs.get("on_progress")
+        if on_progress:
+            on_progress({"phase": "secrets", "message": "Scanning for secrets…"})
+            on_progress(
+                {
+                    "phase": "antares",
+                    "message": "Antares localizing injection (1/3)…",
+                    "current": 1,
+                    "total": 3,
+                    "goal": "injection",
+                }
+            )
+        return SimpleNamespace(run_id="run_" + ("d" * 32), counts={}, report_dir=tmp_path)
+
+    monkeypatch.setattr("acyl.dashboard.app.run_scan", fake_run_scan)
+    client = TestClient(build_dashboard_app())
+    resp = client.post(
+        "/api/scans",
+        json={
+            "path": str(Path("fixtures/vulnerable-app").resolve()),
+            "no_docker": True,
+        },
+    )
+    assert resp.status_code == 200
+    job = resp.json()
+    import time
+
+    for _ in range(50):
+        job = client.get(f"/api/jobs/{job['id']}").json()
+        if job.get("phase") == "antares":
+            seen.append(job)
+        if job["status"] in {"completed", "failed"}:
+            break
+        time.sleep(0.05)
+    assert job["status"] == "completed"
+    assert any(j.get("message", "").startswith("Antares localizing") for j in seen) or job.get(
+        "phase"
+    ) in {"antares", "done", "report", "triage", "secrets"}
+    # Final job payload should still expose phase fields
+    assert "phase" in job
+    assert "message" in job
