@@ -8,8 +8,10 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from acyl.fingerprint import fingerprint
+from acyl.scope import normalize_rel_path, path_excluded, scope_excludes
 from acyl.substrate import Store
 
 SECRET_PATTERNS = [
@@ -50,6 +52,20 @@ def _gitleaks_available() -> bool:
     return shutil.which("gitleaks") is not None
 
 
+def _relativize_hit_path(root: Path, raw: str) -> str:
+    """Normalize gitleaks/file paths to repo-relative posix paths."""
+    text = normalize_rel_path(raw)
+    if not text:
+        return ""
+    candidate = Path(text)
+    try:
+        if candidate.is_absolute():
+            return candidate.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return text
+    return text
+
+
 def run_gitleaks(root: Path) -> list[SecretHit]:
     report = root / ".acyl-gitleaks.json"
     cmd = [
@@ -87,9 +103,10 @@ def run_gitleaks(root: Path) -> list[SecretHit]:
     return hits
 
 
-def run_regex_fallback(root: Path) -> list[SecretHit]:
+def run_regex_fallback(root: Path, *, exclude: list[str] | None = None) -> list[SecretHit]:
     hits: list[SecretHit] = []
     skip_dirs = {".git", "node_modules", ".venv", "venv", "dist", "build", "vendor"}
+    exclude = exclude or []
     for path in root.rglob("*"):
         if not path.is_file():
             continue
@@ -97,11 +114,13 @@ def run_regex_fallback(root: Path) -> list[SecretHit]:
             continue
         if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".woff", ".zip", ".pdf"}:
             continue
+        rel = path.relative_to(root).as_posix()
+        if path_excluded(rel, exclude):
+            continue
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        rel = path.relative_to(root).as_posix()
         for rule_id, pattern, severity, title in SECRET_PATTERNS:
             for match in pattern.finditer(text):
                 line = text.count("\n", 0, match.start()) + 1
@@ -118,8 +137,26 @@ def run_regex_fallback(root: Path) -> list[SecretHit]:
     return hits
 
 
-def detect_secrets(store: Store, run_id: str, root: Path) -> int:
-    hits = run_gitleaks(root) if _gitleaks_available() else run_regex_fallback(root)
+def _filter_hits(root: Path, hits: list[SecretHit], exclude: list[str]) -> list[SecretHit]:
+    kept: list[SecretHit] = []
+    for hit in hits:
+        rel = _relativize_hit_path(root, hit.path)
+        if path_excluded(rel, exclude):
+            continue
+        hit.path = rel or hit.path
+        kept.append(hit)
+    return kept
+
+
+def detect_secrets(
+    store: Store,
+    run_id: str,
+    root: Path,
+    scope: dict[str, Any] | None = None,
+) -> int:
+    exclude = scope_excludes(scope)
+    raw = run_gitleaks(root) if _gitleaks_available() else run_regex_fallback(root, exclude=exclude)
+    hits = _filter_hits(root, raw, exclude)
     count = 0
     for hit in hits:
         fp = fingerprint(hit.path, hit.rule_id, "secret-exposure")

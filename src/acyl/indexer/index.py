@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import fnmatch
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from acyl.scope import path_excluded
 
 LANG_BY_EXT = {
     ".py": "python",
@@ -78,21 +79,6 @@ class Index:
         }
 
 
-def _excluded(rel: str, exclude: list[str]) -> bool:
-    for pattern in exclude:
-        if fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(rel, pattern.rstrip("/")):
-            return True
-        # directory prefixes
-        parts = rel.split("/")
-        for i in range(len(parts)):
-            prefix = "/".join(parts[: i + 1])
-            if fnmatch.fnmatch(prefix, pattern.rstrip("/**")) or fnmatch.fnmatch(
-                prefix + "/", pattern
-            ):
-                return True
-    return False
-
-
 def build_index(root: Path, scope: dict[str, Any] | None = None) -> Index:
     scope = scope or {}
     exclude = list(scope.get("exclude") or [])
@@ -102,7 +88,7 @@ def build_index(root: Path, scope: dict[str, Any] | None = None) -> Index:
         if not path.is_file():
             continue
         rel = path.relative_to(root).as_posix()
-        if _excluded(rel, exclude):
+        if path_excluded(rel, exclude):
             continue
         lang = LANG_BY_EXT.get(path.suffix.lower(), "other")
         symbols: list[str] = []

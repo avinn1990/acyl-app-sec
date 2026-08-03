@@ -5,9 +5,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from acyl.fingerprint import fingerprint
 from acyl.paths import default_rules_dir
+from acyl.scope import path_excluded, scope_excludes
 from acyl.substrate import Store
 
 # High-signal presence patterns aligned with CodeGuard tiers.
@@ -72,8 +74,10 @@ def detect_codeguard_presence(
     run_id: str,
     root: Path,
     rules_dir: Path | None = None,
+    scope: dict[str, Any] | None = None,
 ) -> int:
     _ = list_rule_files(rules_dir)  # ensure corpus is present / discoverable
+    exclude = scope_excludes(scope)
     skip_dirs = {".git", "node_modules", ".venv", "venv", "dist", "build", "vendor", "rules"}
     hits: list[RuleHit] = []
     for path in root.rglob("*"):
@@ -102,11 +106,13 @@ def detect_codeguard_presence(
             ".toml",
         }:
             continue
+        rel = path.relative_to(root).as_posix()
+        if path_excluded(rel, exclude):
+            continue
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        rel = path.relative_to(root).as_posix()
         for rule_id, vuln_class, pattern, severity, title in PRESENCE_RULES:
             for match in pattern.finditer(text):
                 line = text.count("\n", 0, match.start()) + 1

@@ -10,6 +10,7 @@ from typing import Any
 
 from acyl.model.client import ChatClient
 from acyl.paths import default_rules_dir
+from acyl.scope import documentation_context_reason, looks_like_placeholder_secret
 from acyl.substrate import Store
 
 PRESENCE_CLASSES = {
@@ -35,6 +36,72 @@ def _resolve_citation(root: Path, path: str | None, line: int | None) -> bool:
     return line <= text.count("\n") + 1
 
 
+def _finding_snippet(finding: dict[str, Any]) -> str | None:
+    meta = finding.get("metadata")
+    if isinstance(meta, dict):
+        snippet = meta.get("snippet")
+        if snippet:
+            return str(snippet)
+    raw = finding.get("metadata_json")
+    if isinstance(raw, str) and raw:
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(data, dict) and data.get("snippet"):
+            return str(data["snippet"])
+    return None
+
+
+def _documentation_context(
+    finding: dict[str, Any],
+) -> tuple[str | None, bool]:
+    """Return (reason, placeholder_boost) for soft attention demotion."""
+    reason = documentation_context_reason(finding.get("path"))
+    placeholder = looks_like_placeholder_secret(_finding_snippet(finding))
+    if placeholder and not reason:
+        reason = (
+            "matched text looks like a placeholder/example secret, not a live credential"
+        )
+    elif placeholder and reason:
+        reason = f"{reason}; matched text also looks like a placeholder/example"
+    return reason, placeholder
+
+
+def _apply_doc_context_demotion(
+    store: Store,
+    finding: dict[str, Any],
+    *,
+    would_confirm: bool,
+) -> bool:
+    """If path/snippet context applies, demote confirmed → needs-review with evidence.
+
+    Severity is left unchanged. Returns True when a would-be confirm was demoted.
+    """
+    reason, _ = _documentation_context(finding)
+    if not reason:
+        return False
+    store.add_evidence(
+        finding["id"],
+        kind="context",
+        path=finding.get("path"),
+        note=f"documentation-context: {reason}",
+    )
+    if not would_confirm:
+        return False
+    summary = (finding.get("summary") or "").rstrip()
+    note = f"[demoted: documentation-context — {reason}]"
+    if note not in summary:
+        summary = f"{summary} {note}".strip()
+    store.set_verdict(
+        finding["id"],
+        verdict="needs-review",
+        state="needs-review",
+        summary=summary,
+    )
+    return True
+
+
 def triage_run(store: Store, run_id: str, root: Path) -> dict[str, int]:
     counts = {
         "true-positive": 0,
@@ -42,6 +109,7 @@ def triage_run(store: Store, run_id: str, root: Path) -> dict[str, int]:
         "needs-review": 0,
         "recorded": 0,
         "rule-gaps": 0,
+        "doc-context-demoted": 0,
     }
     rule_ids = {p.stem for p in default_rules_dir().glob("codeguard-*")}
     for finding in store.list_findings(run_id):
@@ -60,9 +128,14 @@ def triage_run(store: Store, run_id: str, root: Path) -> dict[str, int]:
             has_presence = "presence" in kinds
             has_impact = "impact" in kinds
             if has_presence and has_impact and citations_ok:
-                store.set_verdict(finding["id"], verdict="true-positive", state="confirmed")
-                counts["true-positive"] += 1
+                if _apply_doc_context_demotion(store, finding, would_confirm=True):
+                    counts["needs-review"] += 1
+                    counts["doc-context-demoted"] += 1
+                else:
+                    store.set_verdict(finding["id"], verdict="true-positive", state="confirmed")
+                    counts["true-positive"] += 1
             elif has_presence:
+                _apply_doc_context_demotion(store, finding, would_confirm=False)
                 store.set_verdict(finding["id"], verdict="needs-review", state="needs-review")
                 counts["needs-review"] += 1
             else:
@@ -75,6 +148,10 @@ def triage_run(store: Store, run_id: str, root: Path) -> dict[str, int]:
         has_trust = "trust-boundary" in kinds or vuln_class == "antares-localization"
         has_impact = "impact" in kinds
         if has_reach and has_trust and has_impact and citations_ok:
+            if _apply_doc_context_demotion(store, finding, would_confirm=True):
+                counts["needs-review"] += 1
+                counts["doc-context-demoted"] += 1
+                continue
             store.set_verdict(finding["id"], verdict="true-positive", state="confirmed")
             counts["true-positive"] += 1
             # Rule-gap: exploratory/antares TP with no CodeGuard rule coverage
@@ -89,6 +166,7 @@ def triage_run(store: Store, run_id: str, root: Path) -> dict[str, int]:
                     )
                     counts["rule-gaps"] += 1
         elif citations_ok and (has_reach or has_impact):
+            _apply_doc_context_demotion(store, finding, would_confirm=False)
             store.set_verdict(finding["id"], verdict="needs-review", state="needs-review")
             counts["needs-review"] += 1
         else:

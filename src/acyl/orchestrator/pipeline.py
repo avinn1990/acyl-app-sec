@@ -228,7 +228,7 @@ def handle_task(ctx: PipelineContext, task: dict[str, Any]) -> None:
 
     if role == ROLE_DETECTOR_SECRETS:
         ctx.progress("secrets", "Scanning for secrets…")
-        n = detect_secrets(ctx.store, ctx.run_id, ctx.target.path)
+        n = detect_secrets(ctx.store, ctx.run_id, ctx.target.path, scope=ctx.target.scope)
         ctx.set_count("secrets", n)
         return
 
@@ -260,7 +260,9 @@ def handle_task(ctx: PipelineContext, task: dict[str, Any]) -> None:
 
     if role == ROLE_DETECTOR_CODEGUARD:
         ctx.progress("codeguard", "Running CodeGuard presence sweep…")
-        n = detect_codeguard_presence(ctx.store, ctx.run_id, ctx.target.path)
+        n = detect_codeguard_presence(
+            ctx.store, ctx.run_id, ctx.target.path, scope=ctx.target.scope
+        )
         ctx.set_count("codeguard", n)
         return
 

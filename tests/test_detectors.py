@@ -28,3 +28,34 @@ def test_secrets_and_codeguard_on_fixture(tmp_path: Path):
     if lodash:
         assert lodash[0]["severity"] in {"high", "critical", "medium", "low"}
     store.close()
+
+
+def test_secrets_honors_explicit_empty_exclude(tmp_path: Path):
+    """Opting out of excludes still scans .cursor when scope.exclude is empty."""
+    from acyl.detectors import secrets as secrets_mod
+
+    skill = tmp_path / ".cursor" / "skills" / "demo"
+    skill.mkdir(parents=True)
+    (skill / "notes.md").write_text(
+        "-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----\n",
+        encoding="utf-8",
+    )
+    db = tmp_path / "t.db"
+    store = Store(db)
+    run_id = store.create_run(
+        target_path=str(tmp_path),
+        pinned_revision="test",
+        scope={"include": ["**/*"], "exclude": []},
+        goals=[{"id": "t", "title": "t", "cwe": "CWE-798"}],
+    )
+    original = secrets_mod._gitleaks_available
+    secrets_mod._gitleaks_available = lambda: False
+    try:
+        n = detect_secrets(
+            store, run_id, tmp_path, scope={"include": ["**/*"], "exclude": []}
+        )
+    finally:
+        secrets_mod._gitleaks_available = original
+    assert n >= 1
+    assert any(".cursor/" in str(f.get("path") or "") for f in store.list_findings(run_id))
+    store.close()
