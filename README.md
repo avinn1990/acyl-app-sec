@@ -73,9 +73,27 @@ Private repos via git URL use your existing host credentials (`ssh-agent`, `gh a
 acyl scan --git-url git@github.com:org/private-repo.git --no-antares
 ```
 
+## Local install from scratch
+
+Full step-by-step for a fresh machine (macOS or Linux), including real Antares inference, dashboard, everyday workflow, Docker-only option, Ollama permanent hosting, and troubleshooting:
+
+**→ [docs/LOCAL.md](docs/LOCAL.md)**
+
+| Step | What |
+|---|---|
+| 0 | What you end up with (CLI, dashboard `:8787`, model `:8080`) |
+| 1 | Base tooling (Xcode CLT / Homebrew / Python ≥ 3.12, optional Docker) |
+| 2 | Clone + `pip install -e ".[dev,model]"` |
+| 3 | Hugging Face gated access + `huggingface-cli login` |
+| 4 | `acyl serve-model` (real weights or mock; transformers pin notes) |
+| 5 | `acyl dashboard` on http://127.0.0.1:8787 |
+| 6 | First scan (CLI + UI) |
+| 7 | Everyday two-process workflow |
+| 8 | Optional Docker-only path |
+
 ## Antares model hosting
 
-Antares-350M runs **only on the operator machine**:
+Antares-350M runs **only on the operator machine**. Short path (details in [docs/LOCAL.md](docs/LOCAL.md)):
 
 1. Request access to [`fdtn-ai/antares-350m`](https://huggingface.co/fdtn-ai/antares-350m) (gated).
 2. `pip install -e ".[model]"` and ensure `huggingface-cli login` once (online).
@@ -83,6 +101,8 @@ Antares-350M runs **only on the operator machine**:
 4. The Antares **agent loop** (outside the model) executes allowlisted shell commands in a Docker sandbox with `network=none` and the target mounted read-only.
 
 For CI / dogfood without weights: `acyl serve-model --mock`.
+
+To keep Antares always on and callable by **any** local web app (OpenAI-compatible), prefer **Ollama** with a GGUF import — see [docs/LOCAL.md § Permanent shared inference](docs/LOCAL.md#permanent-shared-inference-ollama).
 
 Autofix uses a **separate** optional endpoint `ACYL_FIX_MODEL_URL`. SCA bumps and secret redaction stubs work with no LLM.
 
