@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from acyl import __version__
 from acyl.autofix.fix import autofix_finding
 from acyl.orchestrator.scan import run_scan
 from acyl.paths import runs_dir
@@ -28,6 +29,19 @@ _JOB_ID_RE = re.compile(r"^job_[0-9a-f]{32}$")
 # In-memory scan job tracker (single-operator local tool)
 _JOBS: dict[str, dict[str, Any]] = {}
 _JOBS_LOCK = threading.Lock()
+
+
+def _asset_version() -> str:
+    """Bust browser cache when dashboard static files change."""
+    stamp = __version__
+    try:
+        js = STATIC_DIR / "app.js"
+        css = STATIC_DIR / "styles.css"
+        mtime = int(max(js.stat().st_mtime, css.stat().st_mtime))
+        stamp = f"{__version__}.{mtime}"
+    except OSError:
+        pass
+    return stamp
 
 
 class ScanRequest(BaseModel):
@@ -137,6 +151,15 @@ def _delete_run_dir(run_dir: Path) -> None:
 
 def build_dashboard_app() -> FastAPI:
     app = FastAPI(title="acyl dashboard", version="0.1.0")
+
+    @app.middleware("http")
+    async def disable_static_cache(request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path == "/" or path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+        return response
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -407,8 +430,13 @@ def build_dashboard_app() -> FastAPI:
             store.close()
 
     @app.get("/", response_class=HTMLResponse)
-    def index() -> FileResponse:
-        return FileResponse(STATIC_DIR / "index.html")
+    def index() -> HTMLResponse:
+        html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        html = html.replace("__ACYL_ASSET_VERSION__", _asset_version())
+        return HTMLResponse(
+            html,
+            headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"},
+        )
 
     if STATIC_DIR.is_dir():
         app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
