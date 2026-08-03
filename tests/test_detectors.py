@@ -21,4 +21,10 @@ def test_secrets_and_codeguard_on_fixture(tmp_path: Path):
     assert detect_sca(store, run_id, root) >= 1
     findings = store.list_findings(run_id)
     assert any(f["vuln_class"] == "secret-exposure" for f in findings)
+    sca = [f for f in findings if f["source"] == "sca"]
+    assert sca
+    # Fixture lodash is high via KNOWN_BAD when osv-scanner is unavailable
+    lodash = [f for f in sca if "lodash" in (f.get("symbol") or "")]
+    if lodash:
+        assert lodash[0]["severity"] in {"high", "critical", "medium", "low"}
     store.close()

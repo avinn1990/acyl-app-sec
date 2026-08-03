@@ -13,6 +13,7 @@ from acyl.cartographer import write_security_map
 from acyl.detectors.antares import run_antares_localization
 from acyl.detectors.codeguard import detect_codeguard_presence
 from acyl.detectors.sca import detect_sca
+from acyl.detectors.sca_goals import synthesize_sca_antares_goals
 from acyl.detectors.secrets import detect_secrets
 from acyl.indexer import build_index
 from acyl.orchestrator.config import (
@@ -79,6 +80,7 @@ def seed_pipeline(ctx: PipelineContext) -> None:
                 "goals_count": len(ctx.target.goals),
                 "secrets": 0,
                 "sca": 0,
+                "sca_antares": 0,
                 "codeguard": 0,
                 "antares": 0,
                 "codeguard_llm": 0,
@@ -234,6 +236,26 @@ def handle_task(ctx: PipelineContext, task: dict[str, Any]) -> None:
         ctx.progress("sca", "Scanning dependencies (SCA)…")
         n = detect_sca(ctx.store, ctx.run_id, ctx.target.path)
         ctx.set_count("sca", n)
+        # Additive CVE→Antares: enqueue high/critical advisory goals before
+        # this task closes so the detector barrier includes them.
+        if ctx.enable_antares:
+            goals = synthesize_sca_antares_goals(ctx.store.list_findings(ctx.run_id))
+            total = len(goals)
+            for idx, goal in enumerate(goals, start=1):
+                ctx.store.add_task(
+                    ctx.run_id,
+                    ROLE_DETECTOR_ANTARES,
+                    payload={"goal": goal, "index": idx, "total": total, "origin": "sca"},
+                    priority=PRIORITY[ROLE_DETECTOR_ANTARES],
+                )
+            ctx.set_count("sca_antares", total)
+            if total:
+                ctx.progress(
+                    "sca_antares",
+                    f"Enqueued {total} high/critical SCA Antares goal(s)…",
+                    current=total,
+                    total=total,
+                )
         return
 
     if role == ROLE_DETECTOR_CODEGUARD:

@@ -6,8 +6,9 @@ import json
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from acyl.fingerprint import fingerprint
 from acyl.substrate import Store
@@ -18,6 +19,8 @@ KNOWN_BAD = {
     "requests": ("2.19.0", "GHSA-demo-requests", "medium"),
 }
 
+SEVERITY_BANDS = frozenset({"critical", "high", "medium", "low"})
+
 
 @dataclass
 class ScaHit:
@@ -27,10 +30,182 @@ class ScaHit:
     advisory: str
     severity: str
     title: str
+    cwes: list[str] = field(default_factory=list)
+    aliases: list[str] = field(default_factory=list)
+    fixed_version: str | None = None
 
 
 def _osv_available() -> bool:
     return shutil.which("osv-scanner") is not None
+
+
+def _normalize_severity_label(value: str | None) -> str | None:
+    if not value:
+        return None
+    label = str(value).strip().lower()
+    # Common OSV / GHSA variants
+    if label in SEVERITY_BANDS:
+        return label
+    if label in {"mod", "moderate"}:
+        return "medium"
+    return None
+
+
+def _cvss_score_to_band(score: float) -> str:
+    if score >= 9.0:
+        return "critical"
+    if score >= 7.0:
+        return "high"
+    if score >= 4.0:
+        return "medium"
+    return "low"
+
+
+def _extract_cvss_score(entry: dict[str, Any]) -> float | None:
+    """Pull a numeric CVSS score from an OSV severity entry."""
+    raw = entry.get("score")
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    if isinstance(raw, str):
+        # Bare number or CVSS vector string with embedded score metadata
+        try:
+            return float(raw.strip())
+        except ValueError:
+            pass
+        # Some tools nest score in the vector as "CVSS:3.1/AV:N/..."; ignore vector-only.
+    nested = entry.get("cvss_v3") or entry.get("cvssV3") or entry.get("cvss")
+    if isinstance(nested, dict):
+        for key in ("base_score", "baseScore", "score"):
+            val = nested.get(key)
+            if isinstance(val, (int, float)):
+                return float(val)
+            if isinstance(val, str):
+                try:
+                    return float(val.strip())
+                except ValueError:
+                    continue
+    return None
+
+
+def parse_osv_severity(vuln: dict[str, Any]) -> str:
+    """Resolve advisory severity: database_specific label, then CVSS score, else medium."""
+    db = vuln.get("database_specific") or {}
+    if isinstance(db, dict):
+        labeled = _normalize_severity_label(db.get("severity"))
+        if labeled:
+            return labeled
+
+    best_score: float | None = None
+    for entry in vuln.get("severity") or []:
+        if not isinstance(entry, dict):
+            continue
+        # Prefer explicit score over misreading type (CVSS_V3) as a band
+        labeled = _normalize_severity_label(entry.get("severity"))
+        if labeled:
+            return labeled
+        score = _extract_cvss_score(entry)
+        if score is not None and (best_score is None or score > best_score):
+            best_score = score
+    if best_score is not None:
+        return _cvss_score_to_band(best_score)
+    return "medium"
+
+
+def extract_cwes(vuln: dict[str, Any]) -> list[str]:
+    cwes: list[str] = []
+    seen: set[str] = set()
+
+    def _add(raw: Any) -> None:
+        if raw is None:
+            return
+        text = str(raw).strip().upper()
+        if not text:
+            return
+        if not text.startswith("CWE-"):
+            if text.isdigit():
+                text = f"CWE-{text}"
+            else:
+                return
+        if text not in seen:
+            seen.add(text)
+            cwes.append(text)
+
+    db = vuln.get("database_specific") or {}
+    if isinstance(db, dict):
+        for key in ("cwe_ids", "cwes", "CWE"):
+            val = db.get(key)
+            if isinstance(val, list):
+                for item in val:
+                    _add(item)
+            else:
+                _add(val)
+
+    for entry in vuln.get("severity") or []:
+        if isinstance(entry, dict):
+            for item in entry.get("cwe_ids") or []:
+                _add(item)
+
+    return cwes
+
+
+def extract_fixed_version(vuln: dict[str, Any]) -> str | None:
+    fixed: list[str] = []
+    for affected in vuln.get("affected") or []:
+        if not isinstance(affected, dict):
+            continue
+        for range_entry in affected.get("ranges") or []:
+            if not isinstance(range_entry, dict):
+                continue
+            for event in range_entry.get("events") or []:
+                if not isinstance(event, dict):
+                    continue
+                ver = event.get("fixed")
+                if ver:
+                    fixed.append(str(ver))
+    if not fixed:
+        return None
+    # Prefer the last fixed event as a best-effort hint
+    return fixed[-1]
+
+
+def vuln_to_hit(
+    *,
+    path: str,
+    package: str,
+    version: str,
+    vuln: dict[str, Any],
+) -> ScaHit:
+    advisory = str(vuln.get("id") or "osv")
+    aliases = [str(a) for a in (vuln.get("aliases") or []) if a]
+    return ScaHit(
+        path=path or "manifest",
+        package=package,
+        version=version,
+        advisory=advisory,
+        severity=parse_osv_severity(vuln),
+        title=vuln.get("summary") or f"Vulnerable dependency {package}@{version}",
+        cwes=extract_cwes(vuln),
+        aliases=aliases,
+        fixed_version=extract_fixed_version(vuln),
+    )
+
+
+def parse_osv_report(data: dict[str, Any]) -> list[ScaHit]:
+    """Parse osv-scanner JSON into ScaHit rows (testable without the binary)."""
+    hits: list[ScaHit] = []
+    for result in data.get("results") or []:
+        source = (result.get("source") or {}).get("path") or ""
+        for package in result.get("packages") or []:
+            pkg = package.get("package") or {}
+            name = pkg.get("name") or "unknown"
+            version = pkg.get("version") or ""
+            for vuln in package.get("vulnerabilities") or []:
+                if not isinstance(vuln, dict):
+                    continue
+                hits.append(
+                    vuln_to_hit(path=source, package=name, version=version, vuln=vuln)
+                )
+    return hits
 
 
 def run_osv(root: Path) -> list[ScaHit]:
@@ -50,29 +225,9 @@ def run_osv(root: Path) -> list[ScaHit]:
         data = json.loads(report.read_text(encoding="utf-8") or "{}")
     finally:
         report.unlink(missing_ok=True)
-    hits: list[ScaHit] = []
-    results = data.get("results") or []
-    for result in results:
-        source = (result.get("source") or {}).get("path") or ""
-        for package in result.get("packages") or []:
-            pkg = package.get("package") or {}
-            name = pkg.get("name") or "unknown"
-            version = pkg.get("version") or ""
-            for vuln in package.get("vulnerabilities") or []:
-                sev = "medium"
-                for s in vuln.get("severity") or []:
-                    sev = (s.get("type") or sev).lower()
-                hits.append(
-                    ScaHit(
-                        path=source or "manifest",
-                        package=name,
-                        version=version,
-                        advisory=vuln.get("id") or "osv",
-                        severity=sev if sev in {"critical", "high", "medium", "low"} else "medium",
-                        title=vuln.get("summary") or f"Vulnerable dependency {name}@{version}",
-                    )
-                )
-    return hits
+    if not isinstance(data, dict):
+        return []
+    return parse_osv_report(data)
 
 
 def run_manifest_fallback(root: Path) -> list[ScaHit]:
@@ -144,6 +299,10 @@ def detect_sca(store: Store, run_id: str, root: Path) -> int:
                 "package": hit.package,
                 "version": hit.version,
                 "advisory": hit.advisory,
+                "aliases": hit.aliases,
+                "cwes": hit.cwes,
+                "fixed_version": hit.fixed_version,
+                "severity": hit.severity,
             },
         )
         store.add_evidence(
