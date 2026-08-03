@@ -554,16 +554,7 @@ async function renderRun(id, tab) {
           <span class="mono">${esc(f.path || "—")}</span>
         </div>
         <p>${esc(f.summary || "")}</p>
-        <ul class="evidence">
-          ${(f.evidence || [])
-            .map(
-              (e) =>
-                `<li><strong>${esc(e.kind)}</strong> ${esc(e.path || "")}${
-                  e.line ? ":" + e.line : ""
-                } — ${esc(e.note || "")}</li>`
-            )
-            .join("")}
-        </ul>
+        ${evidenceTableHtml(f.evidence || [])}
         ${
           f.state === "confirmed"
             ? `<p style="margin-top:0.75rem"><button class="btn" data-fix="${esc(f.id)}">Autofix offline</button></p>`
@@ -589,6 +580,69 @@ async function renderRun(id, tab) {
       }
     });
   });
+}
+
+function evidenceTableHtml(evidence) {
+  const rowsByLoc = new Map();
+  const other = [];
+  for (const e of evidence || []) {
+    const kind = String(e.kind || "").toLowerCase();
+    if (kind !== "presence" && kind !== "impact") {
+      other.push(e);
+      continue;
+    }
+    const path = e.path || "";
+    const line = e.line || null;
+    const key = `${path}::${line || ""}`;
+    if (!rowsByLoc.has(key)) {
+      rowsByLoc.set(key, { path, line, presence: null, impact: null });
+    }
+    const row = rowsByLoc.get(key);
+    const note = (e.note || "").trim() || "—";
+    if (kind === "presence") row.presence = note;
+    else row.impact = note;
+  }
+
+  const rows = [...rowsByLoc.values()];
+  let html = "";
+  if (rows.length) {
+    html += `<div class="table-wrap evidence-table"><table>
+      <thead><tr><th>File</th><th>Presence</th><th>Impact</th></tr></thead>
+      <tbody>
+        ${rows
+          .map((r) => {
+            const file = r.path
+              ? `${esc(r.path)}${r.line ? ":" + esc(String(r.line)) : ""}`
+              : "—";
+            return `<tr>
+              <td class="mono">${file}</td>
+              <td>${esc(r.presence || "—")}</td>
+              <td>${esc(r.impact || "—")}</td>
+            </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table></div>`;
+  }
+  if (other.length) {
+    if (rows.length) {
+      html += `<p class="evidence-other-label">Other evidence</p>`;
+    }
+    html += `<ul class="evidence">
+      ${other
+        .map(
+          (e) =>
+            `<li><strong>${esc(e.kind)}</strong> ${esc(e.path || "")}${
+              e.line ? ":" + e.line : ""
+            } — ${esc(e.note || "")}</li>`
+        )
+        .join("")}
+    </ul>`;
+  }
+  if (!rows.length && !other.length) {
+    html = `<p class="evidence-empty">No evidence recorded.</p>`;
+  }
+  return html;
 }
 
 async function render() {
