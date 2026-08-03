@@ -28,7 +28,9 @@ def test_dashboard_lists_runs_and_findings(tmp_path, monkeypatch):
     assert "acyl scan report" in report.text
     page = client.get("/")
     assert page.status_code == 200
-    assert "acyl" in page.text
+    assert "Foundry Spec Repository Scanning" in page.text
+    assert "ACYL" in page.text
+    assert "Accelerated Cybersecurity Leadership" in page.text
 
 
 def test_dashboard_scan_endpoint_queues_job(tmp_path, monkeypatch):

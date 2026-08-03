@@ -3,21 +3,43 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>acyl — local AppSec</title>
+    <title>Foundry Spec Repository Scanning</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <div class="atmosphere" aria-hidden="true"></div>
     <header class="top">
       <a class="brand" href="#/" data-link>
-        <span class="brand-mark">acyl</span>
-        <span class="brand-sub">local appsec</span>
+        <span class="brand-lockup" aria-hidden="true">
+          <svg class="brand-glyph" viewBox="0 0 40 40" role="img" focusable="false">
+            <rect x="3" y="3" width="34" height="34" rx="9" fill="none" stroke="currentColor" stroke-width="2" />
+            <path
+              d="M12 14h10M12 20h16M12 26h8"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+            />
+            <circle cx="28" cy="26" r="5" fill="none" stroke="currentColor" stroke-width="2" />
+            <path d="M31.5 29.5 35 33" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+          </svg>
+        </span>
+        <span class="brand-text">
+          <span class="brand-mark">Foundry Spec Repository Scanning</span>
+          <span class="brand-sub">local appsec</span>
+        </span>
       </a>
       <nav class="nav">
         <a href="#/" data-link>Runs</a>
         <a href="#/scan" data-link>New scan</a>
       </nav>
-      <div class="pulse" id="health-pill" title="API health">idle</div>
+      <div class="header-right">
+        <div class="acyl-brand" title="Accelerated Cybersecurity Leadership">
+          <span class="acyl-name">ACYL</span>
+          <span class="acyl-full">Accelerated Cybersecurity Leadership</span>
+        </div>
+        <div class="pulse" id="health-pill" title="API health">idle</div>
+      </div>
     </header>
 
     <main id="app" class="shell">
