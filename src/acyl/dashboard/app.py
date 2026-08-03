@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from acyl import __version__
 from acyl.autofix.fix import autofix_finding
+from acyl.dashboard.agents import build_agent_status
 from acyl.orchestrator.scan import run_scan
 from acyl.paths import runs_dir
 from acyl.scan_control import ScanCancelled
@@ -97,6 +98,8 @@ def _run_summary(run_dir: Path) -> dict[str, Any]:
             except json.JSONDecodeError:
                 manifest = {}
         active_job = None
+        job_phase = None
+        job_status = None
         with _JOBS_LOCK:
             for job in _JOBS.values():
                 if job.get("run_id") == run_dir.name and job.get("status") in {
@@ -111,7 +114,14 @@ def _run_summary(run_dir: Path) -> dict[str, Any]:
                         "message": job.get("message"),
                         "progress": job.get("progress"),
                     }
+                    job_phase = job.get("phase")
+                    job_status = job.get("status")
                     break
+        agents = build_agent_status(
+            store.list_tasks_with_claims(run_dir.name),
+            phase=job_phase,
+            job_status=job_status,
+        )
         return {
             "id": run_dir.name,
             "target_path": run.get("target_path"),
@@ -128,13 +138,53 @@ def _run_summary(run_dir: Path) -> dict[str, Any]:
             "has_report": (run_dir / "reports" / "summary.md").is_file(),
             "manifest_counts": manifest.get("counts"),
             "active_job": active_job,
+            "agents": agents,
         }
     finally:
         store.close()
 
 
 def _public_job(job: dict[str, Any]) -> dict[str, Any]:
-    return {k: v for k, v in job.items() if k != "cancel_event"}
+    public = {k: v for k, v in job.items() if k != "cancel_event"}
+    run_id = public.get("run_id")
+    if run_id and _RUN_ID_RE.fullmatch(str(run_id)):
+        public["agents"] = _agent_status_for_run(
+            str(run_id),
+            phase=public.get("phase"),
+            job_status=public.get("status"),
+        )
+    else:
+        public["agents"] = build_agent_status(
+            [],
+            phase=public.get("phase"),
+            job_status=public.get("status"),
+        )
+    return public
+
+
+def _agent_status_for_run(
+    run_id: str,
+    *,
+    phase: str | None = None,
+    job_status: str | None = None,
+) -> dict[str, Any]:
+    if not _RUN_ID_RE.fullmatch(run_id):
+        return build_agent_status([], phase=phase, job_status=job_status)
+    root = runs_dir().resolve()
+    run_dir = (root / run_id).resolve()
+    try:
+        run_dir.relative_to(root)
+    except ValueError:
+        return build_agent_status([], phase=phase, job_status=job_status)
+    db = run_dir / "acyl.db"
+    if not db.is_file():
+        return build_agent_status([], phase=phase, job_status=job_status)
+    store = Store(db)
+    try:
+        tasks = store.list_tasks_with_claims(run_id)
+        return build_agent_status(tasks, phase=phase, job_status=job_status)
+    finally:
+        store.close()
 
 
 def _stop_job_locked(job: dict[str, Any]) -> dict[str, Any]:
@@ -292,6 +342,26 @@ def build_dashboard_app() -> FastAPI:
         if not path.is_file():
             raise HTTPException(404, "report not found")
         return PlainTextResponse(path.read_text(encoding="utf-8"), media_type="text/markdown")
+
+    @app.get("/api/runs/{run_id}/agents")
+    def api_run_agents(run_id: str) -> dict[str, Any]:
+        """Real-time backend agent / pipeline status for a run."""
+        run_dir = _safe_run_dir(run_id)
+        if not (run_dir / "acyl.db").is_file():
+            raise HTTPException(404, "run not found")
+        phase = None
+        job_status = None
+        with _JOBS_LOCK:
+            for job in _JOBS.values():
+                if job.get("run_id") == run_id and job.get("status") in {
+                    "queued",
+                    "running",
+                    "stopping",
+                }:
+                    phase = job.get("phase")
+                    job_status = job.get("status")
+                    break
+        return _agent_status_for_run(run_id, phase=phase, job_status=job_status)
 
     @app.get("/api/jobs")
     def api_jobs() -> list[dict[str, Any]]:

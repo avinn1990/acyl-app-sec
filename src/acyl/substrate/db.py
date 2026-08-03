@@ -304,6 +304,43 @@ class Store:
                 out.append(item)
             return out
 
+    def list_tasks_with_claims(self, run_id: str) -> list[dict[str, Any]]:
+        """Return tasks joined with active claim/agent identity for live status UIs."""
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT
+                  t.id AS task_id,
+                  t.run_id,
+                  t.role,
+                  t.priority,
+                  t.state,
+                  t.payload_json,
+                  t.release_count,
+                  t.created_at,
+                  t.updated_at,
+                  c.id AS claim_id,
+                  c.agent_id,
+                  c.heartbeat_at,
+                  c.claimed_at
+                FROM tasks t
+                LEFT JOIN claims c ON c.task_id = t.id
+                WHERE t.run_id = ?
+                ORDER BY t.priority ASC, t.created_at ASC
+                """,
+                (run_id,),
+            ).fetchall()
+            out: list[dict[str, Any]] = []
+            for row in rows:
+                item = dict(row)
+                try:
+                    item["payload"] = json.loads(item.pop("payload_json") or "{}")
+                except json.JSONDecodeError:
+                    item["payload"] = {}
+                    item.pop("payload_json", None)
+                out.append(item)
+            return out
+
     def count_tasks(self, run_id: str, *, roles: list[str] | None = None) -> dict[str, int]:
         clauses = ["run_id = ?"]
         params: list[Any] = [run_id]
