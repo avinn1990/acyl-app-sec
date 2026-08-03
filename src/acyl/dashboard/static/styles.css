@@ -378,7 +378,8 @@ tbody tr:hover {
 
 .badge.confirmed,
 .badge.critical,
-.badge.high {
+.badge.high,
+.badge.done {
   color: #1a1f0a;
   background: var(--accent);
   border-color: transparent;
@@ -386,7 +387,8 @@ tbody tr:hover {
 
 .badge.needs-review,
 .badge.medium,
-.badge.warn {
+.badge.warn,
+.badge.queued {
   color: #2a1d00;
   background: var(--warn);
   border-color: transparent;
@@ -394,10 +396,25 @@ tbody tr:hover {
 
 .badge.recorded,
 .badge.low,
-.badge.info {
+.badge.info,
+.badge.running {
   color: var(--info);
   border-color: rgba(126, 182, 255, 0.35);
   background: rgba(126, 182, 255, 0.08);
+}
+
+.badge.running {
+  animation: agent-pulse 1.6s ease-in-out infinite;
+}
+
+.badge.blocked {
+  color: var(--danger);
+  border-color: rgba(255, 92, 92, 0.4);
+  background: rgba(255, 92, 92, 0.1);
+}
+
+.badge.pending {
+  color: var(--muted);
 }
 
 .btn {
@@ -593,6 +610,168 @@ tbody tr:hover {
   animation: rise 250ms ease-out;
   z-index: 50;
   max-width: min(28rem, calc(100vw - 2rem));
+}
+
+.agents-panel {
+  margin-bottom: 1.5rem;
+}
+
+.agent-live {
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.agent-pipeline {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 1.1rem 1.25rem 0.85rem;
+  position: relative;
+}
+
+.agent-step {
+  position: relative;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  min-width: 0;
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.agent-step.state-running {
+  border-color: rgba(126, 182, 255, 0.45);
+  background: rgba(126, 182, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+.agent-step.state-done {
+  border-color: rgba(200, 241, 53, 0.28);
+  background: rgba(200, 241, 53, 0.06);
+}
+
+.agent-step.state-blocked {
+  border-color: rgba(255, 92, 92, 0.4);
+}
+
+.agent-step-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 3px rgba(154, 165, 154, 0.12);
+}
+
+.agent-step.state-running .agent-step-dot {
+  background: var(--info);
+  box-shadow: 0 0 0 4px rgba(126, 182, 255, 0.2);
+  animation: agent-pulse 1.6s ease-in-out infinite;
+}
+
+.agent-step.state-done .agent-step-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(200, 241, 53, 0.18);
+}
+
+.agent-step.state-blocked .agent-step-dot {
+  background: var(--danger);
+}
+
+.agent-step.state-queued .agent-step-dot {
+  background: var(--warn);
+}
+
+.agent-step-wire {
+  display: none;
+}
+
+.agent-step-label {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.agent-step-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.agent-list {
+  border-top: 1px solid var(--line);
+  display: grid;
+}
+
+.agent-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.agent-row:last-child {
+  border-bottom: 0;
+}
+
+.agent-row.state-running {
+  background: rgba(126, 182, 255, 0.05);
+}
+
+.agent-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.98rem;
+}
+
+.agent-role,
+.agent-hb {
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-top: 0.2rem;
+}
+
+.agent-row-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.agent-empty {
+  padding: 1.25rem;
+}
+
+@keyframes agent-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (max-width: 900px) {
+  .agent-pipeline {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .agent-pipeline {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {

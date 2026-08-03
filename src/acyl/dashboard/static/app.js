@@ -42,6 +42,79 @@ function badge(text, cls = "") {
   return `<span class="badge ${cls}">${esc(text)}</span>`;
 }
 
+function agentStateClass(state) {
+  if (state === "running") return "running";
+  if (state === "done") return "done";
+  if (state === "queued") return "queued";
+  if (state === "blocked") return "blocked";
+  return "pending";
+}
+
+function renderAgentBoard(agentsPayload, { compact = false } = {}) {
+  if (!agentsPayload || !agentsPayload.pipeline) return "";
+  const pipeline = agentsPayload.pipeline;
+  const agents = agentsPayload.agents || [];
+  const active = agents.filter((a) => a.state === "running");
+  const detailAgents = compact
+    ? active
+    : agents.filter((a) => a.state !== "pending" || a.task_state);
+  return `
+    <section class="panel agents-panel">
+      <div class="panel-head">
+        <h2>Backend agents</h2>
+        <span class="mono agent-live">${
+          agentsPayload.active_count
+            ? `${agentsPayload.active_count} active`
+            : agentsPayload.phase
+              ? esc(agentsPayload.phase)
+              : "idle"
+        }</span>
+      </div>
+      <div class="agent-pipeline" role="list">
+        ${pipeline
+          .map(
+            (step, i) => `
+          <div class="agent-step state-${esc(agentStateClass(step.state))}" role="listitem">
+            <div class="agent-step-dot" aria-hidden="true"></div>
+            ${i < pipeline.length - 1 ? `<div class="agent-step-wire" aria-hidden="true"></div>` : ""}
+            <div class="agent-step-label">${esc(step.label)}</div>
+            <div class="agent-step-meta">
+              ${badge(step.state, agentStateClass(step.state))}
+              <span class="mono">${step.done}/${step.total}</span>
+            </div>
+          </div>`
+          )
+          .join("")}
+      </div>
+      ${
+        detailAgents.length
+          ? `<div class="agent-list">
+        ${detailAgents
+          .map(
+            (a) => `<div class="agent-row state-${esc(agentStateClass(a.state))}">
+            <div>
+              <div class="agent-name">${esc(a.label)}</div>
+              <div class="mono agent-role">${esc(a.role)}${
+                a.agent_id ? ` · ${esc(a.agent_id)}` : ""
+              }</div>
+            </div>
+            <div class="agent-row-status">
+              ${badge(a.state, agentStateClass(a.state))}
+              ${
+                a.heartbeat_at
+                  ? `<span class="mono agent-hb">hb ${esc(a.heartbeat_at)}</span>`
+                  : ""
+              }
+            </div>
+          </div>`
+          )
+          .join("")}
+      </div>`
+          : `<div class="empty agent-empty">Waiting for pipeline tasks…</div>`
+      }
+    </section>`;
+}
+
 function route() {
   const hash = location.hash.replace(/^#\/?/, "");
   const [page, id, tab] = hash.split("/");
@@ -66,6 +139,10 @@ async function renderHome() {
   const confirmed = runs.reduce((n, r) => n + (r.confirmed || 0), 0);
   const review = runs.reduce((n, r) => n + (r.needs_review || 0), 0);
   const activeJobs = jobs.filter((j) => ["queued", "running", "stopping"].includes(j.status));
+  const liveBoard =
+    activeJobs.find((j) => j.agents)?.agents ||
+    runs.find((r) => r.active_job && r.agents)?.agents ||
+    null;
   app.innerHTML = `
     <section class="hero">
       <h1>Foundry Spec Repository Scanning</h1>
@@ -77,12 +154,13 @@ async function renderHome() {
       <div class="stat"><div class="label">Needs review</div><div class="value">${review}</div></div>
       <div class="stat"><div class="label">Jobs</div><div class="value">${jobs.length}</div></div>
     </section>
+    ${liveBoard ? renderAgentBoard(liveBoard) : ""}
     ${
       activeJobs.length
         ? `<section class="panel">
       <div class="panel-head"><h2>Active jobs</h2></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Job</th><th>Status</th><th>Phase</th><th>Run</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Job</th><th>Status</th><th>Phase</th><th>Agents</th><th>Run</th><th>Actions</th></tr></thead>
         <tbody>
           ${activeJobs
             .map(
@@ -90,6 +168,14 @@ async function renderHome() {
               <td class="mono">${esc(j.id)}</td>
               <td>${badge(j.status, j.status === "stopping" ? "warn" : "info")}</td>
               <td>${esc(j.message || j.phase || "—")}</td>
+              <td>${
+                j.agents
+                  ? badge(
+                      `${j.agents.active_count || 0} running`,
+                      j.agents.active_count ? "running" : "info"
+                    )
+                  : "—"
+              }</td>
               <td class="mono">${
                 j.run_id ? `<a href="#/runs/${esc(j.run_id)}" data-link>${esc(j.run_id)}</a>` : "—"
               }</td>
@@ -113,7 +199,7 @@ async function renderHome() {
       ${
         runs.length
           ? `<div class="table-wrap"><table>
-            <thead><tr><th>Run</th><th>Target</th><th>State</th><th>Confirmed</th><th>Review</th><th>When</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Run</th><th>Target</th><th>State</th><th>Pipeline</th><th>Confirmed</th><th>Review</th><th>When</th><th>Actions</th></tr></thead>
             <tbody>
               ${runs
                 .map(
@@ -121,6 +207,7 @@ async function renderHome() {
                   <td class="mono"><a href="#/runs/${esc(r.id)}" data-link>${esc(r.id)}</a></td>
                   <td class="mono">${esc(shortPath(r.target_path))}</td>
                   <td>${badge(r.state || "—", r.state === "cancelled" ? "warn" : "")}</td>
+                  <td>${pipelineSummary(r.agents)}</td>
                   <td>${badge(r.confirmed ?? 0, r.confirmed ? "confirmed" : "")}</td>
                   <td>${badge(r.needs_review ?? 0, r.needs_review ? "needs-review" : "")}</td>
                   <td class="mono">${esc(r.created_at || "—")}</td>
@@ -144,6 +231,16 @@ async function renderHome() {
   `;
   bindRunControls(app, () => render());
   if (activeJobs.length) scheduleLiveRefresh();
+}
+
+function pipelineSummary(agentsPayload) {
+  if (!agentsPayload || !agentsPayload.pipeline) return "—";
+  const running = agentsPayload.pipeline.find((s) => s.state === "running");
+  if (running) return badge(running.label, "running");
+  if (agentsPayload.pipeline.every((s) => s.state === "done")) return badge("complete", "done");
+  const queued = agentsPayload.pipeline.find((s) => s.state === "queued");
+  if (queued) return badge(queued.label, "queued");
+  return badge("idle", "pending");
 }
 
 function shortPath(path) {
@@ -234,10 +331,12 @@ async function renderScan() {
         <p class="mono" id="scan-status" style="color: var(--muted)"></p>
       </form>
     </section>
+    <div id="scan-agents"></div>
   `;
 
   const form = document.getElementById("scan-form");
   const status = document.getElementById("scan-status");
+  const agentsEl = document.getElementById("scan-agents");
   const stopBtn = document.getElementById("scan-stop");
   let activeJobId = null;
   stopBtn.addEventListener("click", async () => {
@@ -277,9 +376,10 @@ async function renderScan() {
       const job = await api("/api/scans", { method: "POST", body: JSON.stringify(body) });
       activeJobId = job.id;
       status.textContent = `Job ${job.id} ${job.status}`;
+      if (job.agents) agentsEl.innerHTML = renderAgentBoard(job.agents);
       pollJob(job.id, status, btn, stopBtn, () => {
         activeJobId = null;
-      });
+      }, agentsEl);
     } catch (err) {
       status.textContent = String(err.message || err);
       btn.disabled = false;
@@ -289,7 +389,7 @@ async function renderScan() {
   });
 }
 
-async function pollJob(jobId, statusEl, btn, stopBtn, onDone) {
+async function pollJob(jobId, statusEl, btn, stopBtn, onDone, agentsEl) {
   const tick = async () => {
     try {
       const job = await api(`/api/jobs/${jobId}`);
@@ -301,6 +401,9 @@ async function pollJob(jobId, statusEl, btn, stopBtn, onDone) {
       statusEl.textContent = `Job ${job.id}: ${job.status}${job.run_id ? ` → ${job.run_id}` : ""}${
         phaseBit ? ` · ${phaseBit}${progressBit}` : ""
       }${job.error ? ` — ${job.error}` : ""}`;
+      if (agentsEl && job.agents) {
+        agentsEl.innerHTML = renderAgentBoard(job.agents);
+      }
       if (job.status === "completed" && job.run_id) {
         toast(`Scan complete: ${job.run_id}`);
         btn.disabled = false;
@@ -375,6 +478,7 @@ async function renderRun(id, tab) {
         <a class="btn" href="#/" data-link>Back to runs</a>
       </div>
     </section>
+    ${run.agents ? renderAgentBoard(run.agents) : ""}
     <section class="stats">
       <div class="stat"><div class="label">Confirmed</div><div class="value">${confirmed.length}</div></div>
       <div class="stat"><div class="label">Needs review</div><div class="value">${review.length}</div></div>
