@@ -227,6 +227,8 @@ ls -lah ~/.cache/acyl/models/
 
 Roles in v1: Orchestrator, Indexer, Cartographer, Detector (CodeGuard + secrets + SCA + Antares), Triager, Reporter, gated Autofix. Validator / `exploited` is disabled until a disposable testbed exists.
 
+Scans run as a **multi-agent task queue** over SQLite (`tasks` / `claims` with heartbeat reclaim). Worker caps: **1** for indexer, cartographer, triager, and reporter; **2** for the shared detector pool (secrets / SCA / CodeGuard / Antares goals).
+
 See [`specs/001-foundry/`](specs/001-foundry/) for the constitution and clarifications.
 
 ## Cursor: CodeGuard agents & skills
