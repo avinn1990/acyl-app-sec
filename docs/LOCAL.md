@@ -142,19 +142,15 @@ Antares is built on IBM Granite 4.0. Some `transformers` releases raise:
 ValueError: `has_previous_state` can only be called on LinearAttention layers...
 ```
 
-If you hit that, pin a known-good release inside the venv and restart `serve-model`:
-
-```bash
-pip install "transformers==5.12.1"
-```
-
-Or install transformers from git `main` (may include newer fixes). Mock mode still works regardless:
+Current acyl `serve-model` works around this by passing `use_cache=False` during generation (slightly slower; fine for 350M). If you still hit the error on an older checkout, pull latest `main`, reinstall `.[model]`, and restart. Pinning `transformers==5.12.1` is an alternative. Mock mode still works regardless:
 
 ```bash
 ACYL_MODEL_MOCK=1 acyl serve-model --mock --port 8080
 ```
 
 > Note: `serve-model` loads via transformers defaults (typically **CPU** unless you change device placement). Antares-350M is small enough for CPU on a Mac Mini; expect slower localization than a discrete GPU.
+
+For launchd always-on hosting, validated Mac Mini findings, and a deeper troubleshooting table, see the **Antares model hosting** section in [README.md](../README.md#antares-model-hosting).
 
 ---
 
