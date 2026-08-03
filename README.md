@@ -146,7 +146,7 @@ curl -sS http://127.0.0.1:8080/v1/chat/completions \
 export ACYL_MODEL_URL=http://127.0.0.1:8080/v1   # optional; this is the default
 export ACYL_MODEL_ID=fdtn-ai/antares-350m          # optional; this is the default
 acyl scan /path/to/repo          # omit --no-antares
-acyl dashboard                   # UI: uncheck “Skip Antares”
+acyl dashboard                   # UI: Antares on by default; check “Skip Antares” to disable
 ```
 
 The web UI does **not** call Antares directly and has no inference-URL field. The browser talks to the dashboard API; the backend `ChatClient` uses `ACYL_MODEL_URL`. To use a different OpenAI-compatible endpoint, set `ACYL_MODEL_URL` / `ACYL_MODEL_ID` in the environment that runs `acyl` (CLI or dashboard).
@@ -196,7 +196,7 @@ Keep the Mini awake when plugged in. Prefer Ethernet. FileVault still requires u
 | Granite / transformers bug | Attention-only Granite 4.0 350M hits `ValueError: has_previous_state can only be called on LinearAttention layers` on some transformers builds ([transformers#45507](https://github.com/huggingface/transformers/issues/45507)). acyl passes `use_cache=False` in `serve-model` (slightly slower; acceptable for 350M). |
 | launchd | Exit status **78** (`EX_CONFIG`) means launchd never started the process (bad/missing path), not a Python crash. Use absolute `.venv/bin/acyl`; never bare `acyl` or `~` in the plist. |
 | Port 8080 | Manual `serve-model` and launchd fight for the same port — free it with `lsof -iTCP:8080 -sTCP:LISTEN` before `kickstart`. |
-| Dashboard | Uncheck **Skip Antares**. No UI change needed for a working local Antares. Docker dashboard needs `ACYL_MODEL_URL=http://host.docker.internal:8080/v1` and `ACYL_MODEL_MOCK` unset/0 — see [docs/DOCKER.md](docs/DOCKER.md). |
+| Dashboard | Antares is **on by default** in New scan (uncheck nothing). Check **Skip Antares** only to disable. Docker dashboard needs `ACYL_MODEL_URL=http://host.docker.internal:8080/v1` and `ACYL_MODEL_MOCK` unset/0 — see [docs/DOCKER.md](docs/DOCKER.md). |
 | Protocol | Swapping `ACYL_MODEL_URL` to another OpenAI-compatible server works at HTTP layer; the localization agent expects Antares-style tool/command behavior. |
 | Secrets | Never hardcode HF tokens in plist, compose, or repo. Prefer `huggingface-cli login` or Keychain → `HF_TOKEN`. |
 
@@ -209,7 +209,7 @@ Keep the Mini awake when plugged in. Prefer Ethernet. FileVault still requires u
 | launchd status **78** | Bad `ProgramArguments` / missing script | `plutil -lint` plist; absolute paths; `chmod +x` wrapper; `bootout` → `bootstrap` → `kickstart` |
 | `/health` OK, chat returns **500** | Granite cache bug or stale install | Pull main (includes `use_cache=False`), reinstall `.[model]`, restart serve-model; check `~/Library/Logs/acyl/antares.err.log` |
 | `Address already in use` / launchd never binds | Leftover process on 8080 | `lsof -iTCP:8080 -sTCP:LISTEN` and stop the old server |
-| Dashboard scan skips Antares | UI default | Uncheck **Skip Antares** |
+| Dashboard scan skips Antares / no model traffic | **Skip Antares** checked, or model server down | Leave **Skip Antares** unchecked (default); start `acyl serve-model` |
 | Dashboard in Docker can’t reach host Antares | Wrong URL / mock mode | Set `ACYL_MODEL_URL=http://host.docker.internal:8080/v1`, disable `ACYL_MODEL_MOCK` |
 | Incomplete model cache | Interrupted first download | Remove bad files under `~/.cache/acyl/models/` and restart `serve-model` |
 | Need offline after first pull | Hub still contacted | `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` once weights are cached |

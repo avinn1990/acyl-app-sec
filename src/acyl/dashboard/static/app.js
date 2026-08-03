@@ -62,9 +62,10 @@ function setActiveNav() {
 }
 
 async function renderHome() {
-  const runs = await api("/api/runs");
+  const [runs, jobs] = await Promise.all([api("/api/runs"), api("/api/jobs")]);
   const confirmed = runs.reduce((n, r) => n + (r.confirmed || 0), 0);
   const review = runs.reduce((n, r) => n + (r.needs_review || 0), 0);
+  const activeJobs = jobs.filter((j) => ["queued", "running", "stopping"].includes(j.status));
   app.innerHTML = `
     <section class="hero">
       <h1>Foundry Spec Repository Scanning</h1>
@@ -74,8 +75,35 @@ async function renderHome() {
       <div class="stat"><div class="label">Runs</div><div class="value">${runs.length}</div></div>
       <div class="stat"><div class="label">Confirmed</div><div class="value">${confirmed}</div></div>
       <div class="stat"><div class="label">Needs review</div><div class="value">${review}</div></div>
-      <div class="stat"><div class="label">Jobs</div><div class="value" id="job-count">—</div></div>
+      <div class="stat"><div class="label">Jobs</div><div class="value">${jobs.length}</div></div>
     </section>
+    ${
+      activeJobs.length
+        ? `<section class="panel">
+      <div class="panel-head"><h2>Active jobs</h2></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Job</th><th>Status</th><th>Run</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${activeJobs
+            .map(
+              (j) => `<tr>
+              <td class="mono">${esc(j.id)}</td>
+              <td>${badge(j.status, j.status === "stopping" ? "warn" : "info")}</td>
+              <td class="mono">${
+                j.run_id ? `<a href="#/runs/${esc(j.run_id)}" data-link>${esc(j.run_id)}</a>` : "—"
+              }</td>
+              <td class="actions">
+                <button class="btn warn" data-stop-job="${esc(j.id)}" ${
+                  j.status === "stopping" ? "disabled" : ""
+                }>Force stop</button>
+              </td>
+            </tr>`
+            )
+            .join("")}
+        </tbody></table></div>
+      </section>`
+        : ""
+    }
     <section class="panel">
       <div class="panel-head">
         <h2>Recent runs</h2>
@@ -84,16 +112,27 @@ async function renderHome() {
       ${
         runs.length
           ? `<div class="table-wrap"><table>
-            <thead><tr><th>Run</th><th>Target</th><th>Confirmed</th><th>Review</th><th>When</th></tr></thead>
+            <thead><tr><th>Run</th><th>Target</th><th>State</th><th>Confirmed</th><th>Review</th><th>When</th><th>Actions</th></tr></thead>
             <tbody>
               ${runs
                 .map(
                   (r) => `<tr>
                   <td class="mono"><a href="#/runs/${esc(r.id)}" data-link>${esc(r.id)}</a></td>
                   <td class="mono">${esc(shortPath(r.target_path))}</td>
+                  <td>${badge(r.state || "—", r.state === "cancelled" ? "warn" : "")}</td>
                   <td>${badge(r.confirmed ?? 0, r.confirmed ? "confirmed" : "")}</td>
                   <td>${badge(r.needs_review ?? 0, r.needs_review ? "needs-review" : "")}</td>
                   <td class="mono">${esc(r.created_at || "—")}</td>
+                  <td class="actions">
+                    ${
+                      r.active_job
+                        ? `<button class="btn warn" data-stop-run="${esc(r.id)}" ${
+                            r.active_job.status === "stopping" ? "disabled" : ""
+                          }>Force stop</button>`
+                        : ""
+                    }
+                    <button class="btn danger" data-delete-run="${esc(r.id)}">Delete</button>
+                  </td>
                 </tr>`
                 )
                 .join("")}
@@ -102,15 +141,59 @@ async function renderHome() {
       }
     </section>
   `;
-  const jobs = await api("/api/jobs");
-  const jc = document.getElementById("job-count");
-  if (jc) jc.textContent = String(jobs.length);
+  bindRunControls(app, () => render());
 }
 
 function shortPath(path) {
   if (!path) return "—";
   const parts = path.split(/[/\\]/);
   return parts.slice(-3).join("/");
+}
+
+function bindRunControls(root, onDone) {
+  root.querySelectorAll("[data-stop-job]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await api(`/api/jobs/${btn.dataset.stopJob}/stop`, { method: "POST", body: "{}" });
+        toast(`Stopping job ${btn.dataset.stopJob}`);
+        if (onDone) onDone();
+      } catch (err) {
+        toast(String(err.message || err));
+        btn.disabled = false;
+      }
+    });
+  });
+  root.querySelectorAll("[data-stop-run]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await api(`/api/runs/${btn.dataset.stopRun}/stop`, { method: "POST", body: "{}" });
+        toast(`Stopping run ${btn.dataset.stopRun}`);
+        if (onDone) onDone();
+      } catch (err) {
+        toast(String(err.message || err));
+        btn.disabled = false;
+      }
+    });
+  });
+  root.querySelectorAll("[data-delete-run]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.deleteRun;
+      if (!window.confirm(`Delete run ${id}? This removes local artifacts under ~/.cache/acyl/runs/.`)) {
+        return;
+      }
+      btn.disabled = true;
+      try {
+        await api(`/api/runs/${id}`, { method: "DELETE" });
+        toast(`Deleted ${id}`);
+        if (onDone) onDone();
+      } catch (err) {
+        toast(String(err.message || err));
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 async function renderScan() {
@@ -138,12 +221,13 @@ async function renderScan() {
           <input id="revision" name="revision" type="text" placeholder="commit sha / tag" />
         </div>
         <div class="checks">
-          <label><input type="checkbox" name="no_antares" checked /> Skip Antares</label>
+          <label><input type="checkbox" name="no_antares" /> Skip Antares</label>
           <label><input type="checkbox" name="no_docker" checked /> No Docker sandbox</label>
           <label><input type="checkbox" name="llm_codeguard" /> CodeGuard LLM sweep</label>
         </div>
         <div>
           <button class="btn primary" type="submit" id="scan-submit">Start scan</button>
+          <button class="btn warn" type="button" id="scan-stop" hidden>Force stop</button>
         </div>
         <p class="mono" id="scan-status" style="color: var(--muted)"></p>
       </form>
@@ -152,6 +236,20 @@ async function renderScan() {
 
   const form = document.getElementById("scan-form");
   const status = document.getElementById("scan-status");
+  const stopBtn = document.getElementById("scan-stop");
+  let activeJobId = null;
+  stopBtn.addEventListener("click", async () => {
+    if (!activeJobId) return;
+    stopBtn.disabled = true;
+    try {
+      await api(`/api/jobs/${activeJobId}/stop`, { method: "POST", body: "{}" });
+      status.textContent = `Job ${activeJobId}: stopping…`;
+      toast("Force stop requested");
+    } catch (err) {
+      toast(String(err.message || err));
+      stopBtn.disabled = false;
+    }
+  });
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const fd = new FormData(form);
@@ -170,19 +268,26 @@ async function renderScan() {
     }
     const btn = document.getElementById("scan-submit");
     btn.disabled = true;
+    stopBtn.hidden = false;
+    stopBtn.disabled = false;
     status.textContent = "Queueing scan…";
     try {
       const job = await api("/api/scans", { method: "POST", body: JSON.stringify(body) });
+      activeJobId = job.id;
       status.textContent = `Job ${job.id} ${job.status}`;
-      pollJob(job.id, status, btn);
+      pollJob(job.id, status, btn, stopBtn, () => {
+        activeJobId = null;
+      });
     } catch (err) {
       status.textContent = String(err.message || err);
       btn.disabled = false;
+      stopBtn.hidden = true;
+      activeJobId = null;
     }
   });
 }
 
-async function pollJob(jobId, statusEl, btn) {
+async function pollJob(jobId, statusEl, btn, stopBtn, onDone) {
   const tick = async () => {
     try {
       const job = await api(`/api/jobs/${jobId}`);
@@ -192,18 +297,31 @@ async function pollJob(jobId, statusEl, btn) {
       if (job.status === "completed" && job.run_id) {
         toast(`Scan complete: ${job.run_id}`);
         btn.disabled = false;
+        if (stopBtn) stopBtn.hidden = true;
+        if (onDone) onDone();
         location.hash = `#/runs/${job.run_id}`;
         return;
       }
-      if (job.status === "failed") {
-        toast(`Scan failed: ${job.error || "unknown error"}`);
+      if (job.status === "failed" || job.status === "cancelled") {
+        toast(
+          job.status === "cancelled"
+            ? `Scan stopped${job.run_id ? `: ${job.run_id}` : ""}`
+            : `Scan failed: ${job.error || "unknown error"}`
+        );
         btn.disabled = false;
+        if (stopBtn) stopBtn.hidden = true;
+        if (onDone) onDone();
+        if (job.run_id && job.status === "cancelled") {
+          location.hash = `#/runs/${job.run_id}`;
+        }
         return;
       }
       setTimeout(tick, 1200);
     } catch (err) {
       statusEl.textContent = String(err.message || err);
       btn.disabled = false;
+      if (stopBtn) stopBtn.hidden = true;
+      if (onDone) onDone();
     }
   };
   tick();
@@ -228,7 +346,20 @@ async function renderRun(id, tab) {
   app.innerHTML = `
     <section class="hero">
       <h1 class="mono" style="font-size:1.6rem">${esc(run.id)}</h1>
-      <p class="mono">${esc(run.target_path || "")}<br/>rev ${esc(run.pinned_revision || "—")}</p>
+      <p class="mono">${esc(run.target_path || "")}<br/>rev ${esc(run.pinned_revision || "—")} · state ${esc(
+        run.state || "—"
+      )}</p>
+      <div class="actions" style="margin-top:1rem">
+        ${
+          run.active_job
+            ? `<button class="btn warn" data-stop-run="${esc(id)}" ${
+                run.active_job.status === "stopping" ? "disabled" : ""
+              }>Force stop</button>`
+            : ""
+        }
+        <button class="btn danger" data-delete-run="${esc(id)}">Delete run</button>
+        <a class="btn" href="#/" data-link>Back to runs</a>
+      </div>
     </section>
     <section class="stats">
       <div class="stat"><div class="label">Confirmed</div><div class="value">${confirmed.length}</div></div>
@@ -253,6 +384,11 @@ async function renderRun(id, tab) {
       <div id="run-body"></div>
     </section>
   `;
+
+  bindRunControls(app, () => {
+    location.hash = "#/";
+    render();
+  });
 
   const body = document.getElementById("run-body");
   if (tab === "report") {
