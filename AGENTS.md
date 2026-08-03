@@ -16,4 +16,4 @@
 
 ### Run
 - CLI scan (hello world): `ACYL_MODEL_MOCK=1 acyl scan fixtures/vulnerable-app --no-docker --no-antares`, then `acyl status <run_id>` / `acyl findings <run_id> --state confirmed` / `acyl report <run_id>`. `fixtures/vulnerable-app` is intentionally vulnerable scan-target test data (not real secrets).
-- Web dashboard (port 8787): `ACYL_MODEL_MOCK=1 acyl dashboard --host 127.0.0.1 --port 8787`, then open http://127.0.0.1:8787. The dashboard runs scans as in-process background tasks (no separate worker), so it is the only long-lived service needed for the full UI flow. Full CLI options are in `README.md`.
+- Web dashboard (port 8888): `ACYL_MODEL_MOCK=1 acyl dashboard --host 127.0.0.1 --port 8888`, then open http://127.0.0.1:8888. The dashboard runs scans as in-process background tasks (no separate worker), so it is the only long-lived service needed for the full UI flow. Full CLI options are in `README.md`.

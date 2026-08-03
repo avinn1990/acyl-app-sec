@@ -416,7 +416,7 @@ def build_dashboard_app() -> FastAPI:
     return app
 
 
-def run_dashboard(host: str = "127.0.0.1", port: int = 8787) -> None:
+def run_dashboard(host: str = "127.0.0.1", port: int = 8888) -> None:
     import uvicorn
 
     app = build_dashboard_app()

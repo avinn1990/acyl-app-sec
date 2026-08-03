@@ -11,7 +11,7 @@ fi
 case "$cmd" in
   dashboard|ui|web)
     # Containers must listen on all interfaces; publish only localhost on the host.
-    exec acyl dashboard --host 0.0.0.0 --port "${ACYL_DASHBOARD_PORT:-8787}" "$@"
+    exec acyl dashboard --host 0.0.0.0 --port "${ACYL_DASHBOARD_PORT:-8888}" "$@"
     ;;
   serve-model|model)
     exec acyl serve-model --host 0.0.0.0 --port "${ACYL_MODEL_PORT:-8080}" "$@"

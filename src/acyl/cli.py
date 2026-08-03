@@ -179,7 +179,11 @@ def serve_model_cmd(
 @app.command("dashboard")
 def dashboard_cmd(
     host: str = typer.Option("127.0.0.1", "--host", help="Bind address (localhost by default)"),
-    port: int = typer.Option(8787, "--port"),
+    port: int = typer.Option(
+        int(os.environ.get("ACYL_DASHBOARD_PORT", "8888")),
+        "--port",
+        help="Dashboard listen port (or ACYL_DASHBOARD_PORT)",
+    ),
 ) -> None:
     """Open the local web dashboard for runs, findings, and scans."""
     from acyl.dashboard import run_dashboard
