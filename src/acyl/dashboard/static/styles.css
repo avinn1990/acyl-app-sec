@@ -432,10 +432,31 @@ tbody tr:hover {
   background: #d8ff5a;
 }
 
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
+.btn.danger {
+  border-color: rgba(255, 92, 92, 0.45);
+  color: var(--danger);
+}
+
+.btn.danger:hover {
+  border-color: var(--danger);
+  background: rgba(255, 92, 92, 0.12);
+}
+
+.btn.warn {
+  border-color: rgba(255, 176, 32, 0.45);
+  color: var(--warn);
+}
+
+.btn.warn:hover {
+  border-color: var(--warn);
+  background: rgba(255, 176, 32, 0.12);
+}
+
+.actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .form {

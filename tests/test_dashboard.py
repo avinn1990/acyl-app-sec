@@ -1,8 +1,10 @@
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
+from acyl.dashboard import app as dash_mod
 from acyl.dashboard.app import build_dashboard_app
 from acyl.orchestrator.scan import run_scan
 from acyl.substrate import Store
@@ -69,7 +71,7 @@ def test_dashboard_scan_defaults_enable_antares(tmp_path, monkeypatch):
 
     def fake_run_scan(**kwargs):
         called.update(kwargs)
-        return SimpleNamespace(run_id="run_test", counts={}, report_dir=tmp_path)
+        return SimpleNamespace(run_id="run_" + ("c" * 32), counts={}, report_dir=tmp_path)
 
     monkeypatch.setattr("acyl.dashboard.app.run_scan", fake_run_scan)
     client = TestClient(build_dashboard_app())
@@ -92,3 +94,66 @@ def test_dashboard_scan_defaults_enable_antares(tmp_path, monkeypatch):
     assert job["status"] == "completed"
     assert called.get("enable_antares") is True
     assert job["request"]["no_antares"] is False
+
+
+def test_dashboard_delete_run(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = run_scan(
+        path=Path("fixtures/vulnerable-app").resolve(),
+        enable_antares=False,
+        use_docker=False,
+    )
+    run_dir = Path.home() / ".cache" / "acyl" / "runs" / result.run_id
+    assert run_dir.is_dir()
+    client = TestClient(build_dashboard_app())
+    resp = client.delete(f"/api/runs/{result.run_id}")
+    assert resp.status_code == 200
+    assert resp.json()["deleted"] == result.run_id
+    assert not run_dir.exists()
+    assert client.get(f"/api/runs/{result.run_id}").status_code == 404
+
+
+def test_dashboard_stop_job_sets_cancel_event(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    dash_mod._JOBS.clear()
+    cancel_event = threading.Event()
+    job_id = "job_" + ("b" * 32)
+    run_id = "run_" + ("a" * 32)
+    dash_mod._JOBS[job_id] = {
+        "id": job_id,
+        "status": "running",
+        "request": {},
+        "started_at": "now",
+        "run_id": run_id,
+        "error": None,
+        "cancel_event": cancel_event,
+    }
+    client = TestClient(build_dashboard_app())
+    stop = client.post(f"/api/jobs/{job_id}/stop")
+    assert stop.status_code == 200
+    assert stop.json()["status"] == "stopping"
+    assert "cancel_event" not in stop.json()
+    assert cancel_event.is_set()
+
+    stop_run = client.post(f"/api/runs/{run_id}/stop")
+    # already stopping → 409 from second stop on same job, or ok if still stopping
+    assert stop_run.status_code in {200, 409}
+    dash_mod._JOBS.clear()
+
+
+def test_run_scan_honours_cancel_event(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cancel_event = threading.Event()
+    cancel_event.set()
+    try:
+        run_scan(
+            path=Path("fixtures/vulnerable-app").resolve(),
+            enable_antares=False,
+            use_docker=False,
+            cancel_event=cancel_event,
+        )
+        raise AssertionError("expected ScanCancelled")
+    except Exception as exc:
+        from acyl.scan_control import ScanCancelled
+
+        assert isinstance(exc, ScanCancelled)

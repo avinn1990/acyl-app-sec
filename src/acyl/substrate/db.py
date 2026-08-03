@@ -86,6 +86,13 @@ class Store:
         row = self._conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
         return dict(row) if row else None
 
+    def set_run_state(self, run_id: str, state: str) -> None:
+        with self.tx() as conn:
+            conn.execute(
+                "UPDATE runs SET state = ?, updated_at = ? WHERE id = ?",
+                (state, utcnow(), run_id),
+            )
+
     def add_task(
         self,
         run_id: str,

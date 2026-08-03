@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,7 @@ def run_antares_localization(
     client: ChatClient | None = None,
     max_turns: int = 15,
     use_docker: bool | None = None,
+    cancel_check: Callable[[], None] | None = None,
 ) -> int:
     client = client or ChatClient()
     cwe = goal.get("cwe") or goal.get("title") or goal.get("id")
@@ -65,6 +67,8 @@ def run_antares_localization(
     files: list[str] = []
     with Sandbox(root, artifacts / "antares", use_docker=use_docker) as box:
         for _ in range(max_turns):
+            if cancel_check is not None:
+                cancel_check()
             try:
                 content = client.chat(messages, temperature=0.3, top_p=1.0, max_tokens=512)
             except Exception as exc:
